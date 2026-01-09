@@ -1,1 +1,16 @@
-bạn ơi, tôi có 1 yêu cầu mới  với chức năng chuyển 
+bạn ơi, tôi có 1 yêu cầu mới  với chức năng chuyển kho liên shop này chức năng hiện tại oke hết rồi nha.
+tôi cần bạn tham khảo trang tạo mới phiếu bán hàng cho khách ở tgs_shop_management ( tôi gọi tắt là plugin shop) thì nó đang sinh ra phiếu bán hàng là cha ( nó ko lưu item vội và nó cx ko tạo item)
+nó sẽ sinh ra phiếu xuất tự động (cái này mới sinh item này) , chưa cần bạn tham khảo thu chi của nó nhé, khi có item của phiếu xuất tự động rồi thì phiues bán hàng cha mới cập nhật list id item json vào phiếu bán hàng đó
+nhớ là phiếu bán hàng là cha của phiếu xuất tự động( thậm chí là thu chi sau này).
+và  bạn cũng tham khảo trang tạo mới phiếu mua hàn ở plugin shop thì nó sinh ra phiếu mua hàng là cha ( cũng chưa sinh item), rồi nó sinh ra phiếu nhập tự động ( cái này mới sinh item), sau đóphieeus cha sẽ cập nhật list id item json vào phiếu mua hàng.
+Nói chung nó sẽ xoay quanh quản lý hàng hoá ở phiếu xuất và nhập ngầm ( tôi gọi là tự động )
+
+Thì ở phần chuyển kho liên shop á (cứ chỉnh dần theo luồng đang có đã, vì sau này oke tôi sẽ đổi tên nó thành phiếu bán hàng cho shop con, nhưng là chuyện của sau này nha)
+giờ nè: tôi muốn khi shop mẹ tạoo phiếu xuất xuống shop con, hienej là nó sinh ra có mỗi 1 phiếu xuất xuống shop con , giờ phải điều chỉnh lại uk thì nó sinh ra phiếu đó ( nhưng ko sinh item, vì nó tương tự phiếu bán hàng bạn vừa tham khảo á)
+nó sẽ sinh ra phiếu xuất tự động ( là con của phiếu xuất xuống con và đây mới tạo item này) rồi phiếu cha sẽ cập nhật lại. 
+khi tạo thành công 2 loại phiếu đó (nghĩa là lưu tạo thành công) thì bảng transfer_ledger ở cả con và mẹ thì source_ledger_item_id ( chính là item của phiếu xuất tự động á), còn source_ledger_id là phiếu xuất xuống con 
+
+Còn khi ở con mà tạo phiếu nhập kho thì làm ngược lại là nó sẽ sinh ra phiếu nhập từ mẹ ( là phiếu cha) rồi nó sinh ra phiếu nhập tự động ( sinh item) rồi phiếu cha cập nhật item, roiof transfer_ledger ở cả con và mẹ cập nhật lại destination_ledger_item_id là item của phiếu nhập 
+tự động, destination_ledger_id là phiếu nhập từ mẹ ( phiếu cha )
+
+BẠn điều chỉnh giúp tôi phần này trước đã rồi tôi nói tiếp, làm chuẩn vào nhé, chưa quan tâm cái khác như duyệt, từ chối ,hay gì cả , làm chuẩn trước phần trên rồi tôi nói tiếp
