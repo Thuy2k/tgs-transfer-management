@@ -2320,27 +2320,44 @@ class TGS_Transfer_Ajax
         $products_table = $wpdb->prefix . 'local_product_name';
         $lots_table = 'wp_global_product_lots';
 
-        // Lấy thông tin phiếu
-        $ledger = $wpdb->get_row($wpdb->prepare("
+        // Lấy thông tin phiếu con xuất (type 2 = SALE)
+        $child_ledger = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$ledger_table}
             WHERE local_ledger_id = %d
             AND local_ledger_type = %d
-        ", $ledger_id, TGS_LEDGER_TYPE_TRANSFER_EXPORT));
+        ", $ledger_id, TGS_LEDGER_TYPE_SALE));
 
-        if (!$ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu']);
+        if (!$child_ledger) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu xuất kho']);
         }
 
-        if ($ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_REJECTED) {
+        // Tìm phiếu cha (TRANSFER_EXPORT type 12) qua local_ledger_parent_id
+        $parent_ledger_id = intval($child_ledger->local_ledger_parent_id);
+        if (!$parent_ledger_id) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu cha']);
+        }
+
+        $parent_ledger = $wpdb->get_row($wpdb->prepare("
+            SELECT * FROM {$ledger_table}
+            WHERE local_ledger_id = %d
+            AND local_ledger_type = %d
+        ", $parent_ledger_id, TGS_LEDGER_TYPE_TRANSFER_EXPORT));
+
+        if (!$parent_ledger) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu xuất đến shop con']);
+        }
+
+        if ($child_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_REJECTED) {
             wp_send_json_error(['message' => 'Phiếu đã bị từ chối trước đó']);
         }
 
-        // Lấy các item
+        // Lấy các item từ phiếu con xuất (chính là ledger_id được gửi lên)
         $items = $wpdb->get_results($wpdb->prepare("
             SELECT li.*, p.local_product_name, p.local_product_is_tracking
             FROM {$ledger_item_table} li
             JOIN {$products_table} p ON li.local_product_name_id = p.local_product_name_id
             WHERE li.local_ledger_id = %d
+            AND (li.is_deleted = 0 OR li.is_deleted IS NULL)
         ", $ledger_id));
 
         $wpdb->query('START TRANSACTION');
@@ -2379,7 +2396,7 @@ class TGS_Transfer_Ajax
                 }
             }
 
-            // Cập nhật trạng thái phiếu
+            // Cập nhật trạng thái phiếu con xuất
             $wpdb->update($ledger_table, [
                 'local_ledger_approver_status' => TGS_APPROVER_STATUS_REJECTED,
                 'local_ledger_status' => TGS_LEDGER_STATUS_REJECTED,
@@ -2387,12 +2404,20 @@ class TGS_Transfer_Ajax
                 'updated_at' => current_time('mysql')
             ], ['local_ledger_id' => $ledger_id]);
 
-            // Cập nhật transfer_ledger
+            // Cập nhật trạng thái phiếu cha (TRANSFER_EXPORT)
+            $wpdb->update($ledger_table, [
+                'local_ledger_approver_status' => TGS_APPROVER_STATUS_REJECTED,
+                'local_ledger_status' => TGS_LEDGER_STATUS_REJECTED,
+                'local_ledger_approver_id' => $current_user_id,
+                'updated_at' => current_time('mysql')
+            ], ['local_ledger_id' => $parent_ledger_id]);
+
+            // Cập nhật transfer_ledger (dùng parent_ledger_id vì source_ledger_id = phiếu cha)
             $transfer_table = $wpdb->prefix . 'transfer_ledger';
             $wpdb->update($transfer_table, [
                 'transfer_status' => TGS_TRANSFER_STATUS_REJECTED,
                 'updated_at' => current_time('mysql')
-            ], ['source_ledger_id' => $ledger_id]);
+            ], ['source_ledger_id' => $parent_ledger_id]);
 
             $wpdb->query('COMMIT');
 
@@ -2440,35 +2465,52 @@ class TGS_Transfer_Ajax
         $products_table = $wpdb->prefix . 'local_product_name';
         $lots_table = 'wp_global_product_lots';
 
-        // Lấy thông tin phiếu
-        $ledger = $wpdb->get_row($wpdb->prepare("
+        // Lấy thông tin phiếu con nhập (type 1 = PURCHASE)
+        $child_ledger = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$ledger_table}
             WHERE local_ledger_id = %d
             AND local_ledger_type = %d
-        ", $ledger_id, TGS_LEDGER_TYPE_TRANSFER_IMPORT));
+        ", $ledger_id, TGS_LEDGER_TYPE_PURCHASE));
 
-        if (!$ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu']);
+        if (!$child_ledger) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu nhập kho']);
         }
 
-        if ($ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_REJECTED) {
+        // Tìm phiếu cha (TRANSFER_IMPORT type 13) qua local_ledger_parent_id
+        $parent_ledger_id = intval($child_ledger->local_ledger_parent_id);
+        if (!$parent_ledger_id) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu cha']);
+        }
+
+        $parent_ledger = $wpdb->get_row($wpdb->prepare("
+            SELECT * FROM {$ledger_table}
+            WHERE local_ledger_id = %d
+            AND local_ledger_type = %d
+        ", $parent_ledger_id, TGS_LEDGER_TYPE_TRANSFER_IMPORT));
+
+        if (!$parent_ledger) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu nhập từ shop mẹ']);
+        }
+
+        if ($child_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_REJECTED) {
             wp_send_json_error(['message' => 'Phiếu đã bị từ chối trước đó']);
         }
 
-        // Lấy các item trong phiếu nhập hiện tại (các lot đã được chọn để nhập)
+        // Lấy các item từ phiếu con nhập (chính là ledger_id được gửi lên)
         $items = $wpdb->get_results($wpdb->prepare("
             SELECT li.*, p.local_product_name, p.local_product_is_tracking
             FROM {$ledger_item_table} li
             JOIN {$products_table} p ON li.local_product_name_id = p.local_product_name_id
             WHERE li.local_ledger_id = %d
+            AND (li.is_deleted = 0 OR li.is_deleted IS NULL)
         ", $ledger_id));
 
-        // Tìm transfer_ledger để biết phiếu xuất gốc
+        // Tìm transfer_ledger để biết phiếu xuất gốc (dùng parent_ledger_id)
         $local_transfer_table = $wpdb->prefix . 'transfer_ledger';
         $local_transfer = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$local_transfer_table}
             WHERE destination_ledger_id = %d
-        ", $ledger_id));
+        ", $parent_ledger_id));
 
         $wpdb->query('START TRANSACTION');
 
@@ -2506,16 +2548,30 @@ class TGS_Transfer_Ajax
                 $source_blog_id = intval($local_transfer->source_blog_id);
                 $source_ledger_id = intval($local_transfer->source_ledger_id);
 
-                // Lấy TOÀN BỘ lot từ phiếu xuất gốc (shop mẹ)
+                // Lấy TOÀN BỘ lot từ phiếu xuất gốc (shop mẹ) qua local_ledger_item_id
                 switch_to_blog($source_blog_id);
+                $source_ledger_table = $wpdb->prefix . 'local_ledger';
                 $source_ledger_item_table = $wpdb->prefix . 'local_ledger_item';
 
-                $source_items = $wpdb->get_results($wpdb->prepare("
-                    SELECT list_product_lots
-                    FROM {$source_ledger_item_table}
+                // Lấy local_ledger_item_id từ phiếu cha
+                $source_ledger_data = $wpdb->get_row($wpdb->prepare("
+                    SELECT local_ledger_item_id FROM {$source_ledger_table}
                     WHERE local_ledger_id = %d
-                      AND (is_deleted = 0 OR is_deleted IS NULL)
-                ", $source_ledger_id), ARRAY_A);
+                ", $source_ledger_id));
+
+                $source_items = [];
+                if ($source_ledger_data && !empty($source_ledger_data->local_ledger_item_id)) {
+                    $source_item_ids = json_decode($source_ledger_data->local_ledger_item_id, true) ?: [];
+                    if (!empty($source_item_ids)) {
+                        $source_item_ids_str = implode(',', array_map('intval', $source_item_ids));
+                        $source_items = $wpdb->get_results("
+                            SELECT list_product_lots
+                            FROM {$source_ledger_item_table}
+                            WHERE local_ledger_item_id IN ({$source_item_ids_str})
+                              AND (is_deleted = 0 OR is_deleted IS NULL)
+                        ", ARRAY_A);
+                    }
+                }
 
                 restore_current_blog();
 
@@ -2552,7 +2608,7 @@ class TGS_Transfer_Ajax
                 }
             }
 
-            // Cập nhật trạng thái phiếu
+            // Cập nhật trạng thái phiếu con nhập
             $wpdb->update($ledger_table, [
                 'local_ledger_approver_status' => TGS_APPROVER_STATUS_REJECTED,
                 'local_ledger_status' => TGS_LEDGER_STATUS_REJECTED,
@@ -2560,11 +2616,21 @@ class TGS_Transfer_Ajax
                 'updated_at' => current_time('mysql')
             ], ['local_ledger_id' => $ledger_id]);
 
-            // Cập nhật transfer_ledger ở shop con
-            $wpdb->update($local_transfer_table, [
-                'transfer_status' => TGS_TRANSFER_STATUS_REJECTED,
+            // Cập nhật trạng thái phiếu cha (TRANSFER_IMPORT)
+            $wpdb->update($ledger_table, [
+                'local_ledger_approver_status' => TGS_APPROVER_STATUS_REJECTED,
+                'local_ledger_status' => TGS_LEDGER_STATUS_REJECTED,
+                'local_ledger_approver_id' => $current_user_id,
                 'updated_at' => current_time('mysql')
-            ], ['transfer_ledger_id' => $local_transfer->transfer_ledger_id]);
+            ], ['local_ledger_id' => $parent_ledger_id]);
+
+            // Cập nhật transfer_ledger ở shop con
+            if ($local_transfer) {
+                $wpdb->update($local_transfer_table, [
+                    'transfer_status' => TGS_TRANSFER_STATUS_REJECTED,
+                    'updated_at' => current_time('mysql')
+                ], ['transfer_ledger_id' => $local_transfer->transfer_ledger_id]);
+            }
 
             // Cập nhật transfer_ledger ở shop mẹ
             if ($local_transfer) {
