@@ -297,6 +297,7 @@ class TGS_Transfer_Ajax
                 'local_ledger_status' => TGS_LEDGER_STATUS_PENDING,
                 'local_ledger_approver_status' => TGS_APPROVER_STATUS_PENDING,
                 'user_id' => $current_user_id,
+                'is_deleted' => 0,
                 'created_at' => current_time('mysql'),
                 'updated_at' => current_time('mysql')
             ]);
@@ -1007,6 +1008,7 @@ class TGS_Transfer_Ajax
                 'local_ledger_status' => TGS_LEDGER_STATUS_PENDING,
                 'local_ledger_approver_status' => TGS_APPROVER_STATUS_PENDING,
                 'user_id' => $current_user_id,
+                'is_deleted' => 0,
                 'created_at' => current_time('mysql'),
                 'updated_at' => current_time('mysql')
             ]);
