@@ -1630,15 +1630,28 @@ class TGS_Transfer_Ajax
 
         $transfer->source_shop_name = get_bloginfo('name');
 
-        // Lấy items từ shop mẹ
-        $items = $wpdb->get_results($wpdb->prepare("
-            SELECT li.*, p.local_product_name as product_name,
-                   p.local_product_barcode_main as barcode_main,
-                   p.local_product_is_tracking as is_tracking
-            FROM {$ledger_item_table} li
-            JOIN {$products_table} p ON li.local_product_name_id = p.local_product_name_id
-            WHERE li.local_ledger_id = %d
+        // Lấy items từ shop mẹ - phiếu cha lưu item IDs trong local_ledger_item_id
+        $source_ledger = $wpdb->get_row($wpdb->prepare("
+            SELECT local_ledger_item_id FROM {$ledger_table}
+            WHERE local_ledger_id = %d
         ", $source_ledger_id));
+
+        $items = [];
+        if ($source_ledger && !empty($source_ledger->local_ledger_item_id)) {
+            $item_ids = json_decode($source_ledger->local_ledger_item_id, true) ?: [];
+            if (!empty($item_ids)) {
+                $item_ids_str = implode(',', array_map('intval', $item_ids));
+                $items = $wpdb->get_results("
+                    SELECT li.*, p.local_product_name as product_name,
+                           p.local_product_barcode_main as barcode_main,
+                           p.local_product_is_tracking as is_tracking
+                    FROM {$ledger_item_table} li
+                    JOIN {$products_table} p ON li.local_product_name_id = p.local_product_name_id
+                    WHERE li.local_ledger_item_id IN ({$item_ids_str})
+                    AND (li.is_deleted = 0 OR li.is_deleted IS NULL)
+                ");
+            }
+        }
 
         restore_current_blog();
 
