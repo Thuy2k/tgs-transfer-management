@@ -750,12 +750,13 @@ class TGS_Transfer_Ajax
             $source_ledger_table = $wpdb->prefix . 'local_ledger';
             $source_ledger_item_table = $wpdb->prefix . 'local_ledger_item';
 
-            // Lấy thông tin phiếu xuất từ shop mẹ
+            // Lấy thông tin phiếu xuất từ shop mẹ (phiếu cha type 12)
             $source_ledger = $wpdb->get_row($wpdb->prepare("
                 SELECT local_ledger_code,
                        local_ledger_total_amount,
                        local_ledger_note,
-                       local_ledger_approver_status
+                       local_ledger_approver_status,
+                       local_ledger_item_id
                 FROM {$source_ledger_table}
                 WHERE local_ledger_id = %d
             ", $transfer->source_ledger_id));
@@ -769,11 +770,22 @@ class TGS_Transfer_Ajax
                 // Tên shop mẹ
                 $transfer->source_shop_name = get_bloginfo('name');
 
-                // Đếm số sản phẩm
-                $items_count = $wpdb->get_var($wpdb->prepare("
-                    SELECT COUNT(*) FROM {$source_ledger_item_table}
-                    WHERE local_ledger_id = %d
-                ", $transfer->source_ledger_id));
+                // Đếm số sản phẩm từ local_ledger_item_id (JSON array của item IDs từ phiếu con)
+                $item_ids = [];
+                if (!empty($source_ledger->local_ledger_item_id)) {
+                    $item_ids = json_decode($source_ledger->local_ledger_item_id, true) ?: [];
+                }
+
+                // Đếm số items thực tế từ bảng local_ledger_item
+                $items_count = 0;
+                if (!empty($item_ids)) {
+                    $item_ids_str = implode(',', array_map('intval', $item_ids));
+                    $items_count = $wpdb->get_var("
+                        SELECT COUNT(*) FROM {$source_ledger_item_table}
+                        WHERE local_ledger_item_id IN ({$item_ids_str})
+                        AND (is_deleted = 0 OR is_deleted IS NULL)
+                    ");
+                }
                 $transfer->items_count = intval($items_count);
 
                 // Set trạng thái hiển thị - nếu phiếu xuất đã duyệt thì mới cho tạo phiếu nhập
@@ -881,13 +893,23 @@ class TGS_Transfer_Ajax
             wp_send_json_error(['message' => 'Phiếu xuất chưa được shop mẹ duyệt']);
         }
 
-        // Lấy các item từ phiếu xuất + đầy đủ thông tin sản phẩm để sync
-        $source_items = $wpdb->get_results($wpdb->prepare("
-            SELECT li.*, p.*
-            FROM {$source_ledger_item_table} li
-            JOIN {$source_products_table} p ON li.local_product_name_id = p.local_product_name_id
-            WHERE li.local_ledger_id = %d
-        ", $source_ledger_id));
+        // Lấy các item từ local_ledger_item_id (JSON array của item IDs từ phiếu con xuất kho)
+        $item_ids = [];
+        if (!empty($source_ledger->local_ledger_item_id)) {
+            $item_ids = json_decode($source_ledger->local_ledger_item_id, true) ?: [];
+        }
+
+        $source_items = [];
+        if (!empty($item_ids)) {
+            $item_ids_str = implode(',', array_map('intval', $item_ids));
+            $source_items = $wpdb->get_results("
+                SELECT li.*, p.*
+                FROM {$source_ledger_item_table} li
+                JOIN {$source_products_table} p ON li.local_product_name_id = p.local_product_name_id
+                WHERE li.local_ledger_item_id IN ({$item_ids_str})
+                AND (li.is_deleted = 0 OR li.is_deleted IS NULL)
+            ");
+        }
 
         restore_current_blog();
 
@@ -1221,14 +1243,28 @@ class TGS_Transfer_Ajax
             // Switch sang shop mẹ để lấy thông tin phiếu xuất gốc
             switch_to_blog($source_blog_id);
 
+            $source_ledger_table = $wpdb->prefix . 'local_ledger';
             $source_ledger_item_table = $wpdb->prefix . 'local_ledger_item';
-            
-            // Lấy tổng quantity VÀ danh sách lot IDs từ phiếu xuất gốc
-            $source_items_data = $wpdb->get_results($wpdb->prepare("
-                SELECT quantity, list_product_lots FROM {$source_ledger_item_table}
+
+            // Lấy local_ledger_item_id từ phiếu cha xuất
+            $source_ledger_data = $wpdb->get_row($wpdb->prepare("
+                SELECT local_ledger_item_id FROM {$source_ledger_table}
                 WHERE local_ledger_id = %d
-                  AND (is_deleted = 0 OR is_deleted IS NULL)
-            ", $source_ledger_id), ARRAY_A);
+            ", $source_ledger_id));
+
+            // Lấy tổng quantity VÀ danh sách lot IDs từ các items (qua local_ledger_item_id)
+            $source_items_data = [];
+            if ($source_ledger_data && !empty($source_ledger_data->local_ledger_item_id)) {
+                $source_item_ids = json_decode($source_ledger_data->local_ledger_item_id, true) ?: [];
+                if (!empty($source_item_ids)) {
+                    $source_item_ids_str = implode(',', array_map('intval', $source_item_ids));
+                    $source_items_data = $wpdb->get_results("
+                        SELECT quantity, list_product_lots FROM {$source_ledger_item_table}
+                        WHERE local_ledger_item_id IN ({$source_item_ids_str})
+                          AND (is_deleted = 0 OR is_deleted IS NULL)
+                    ", ARRAY_A);
+                }
+            }
 
             restore_current_blog();
 
@@ -1693,18 +1729,33 @@ class TGS_Transfer_Ajax
         // Step 2: Switch sang shop mẹ để lấy danh sách sản phẩm
         switch_to_blog($source_blog_id);
 
+        $ledger_table = $wpdb->prefix . 'local_ledger';
         $ledger_item_table = $wpdb->prefix . 'local_ledger_item';
         $products_table = $wpdb->prefix . 'local_product_name';
 
-        $items = $wpdb->get_results($wpdb->prepare("
-            SELECT li.*,
-                   p.local_product_name as product_name,
-                   p.local_product_barcode_main as barcode_main,
-                   p.local_product_is_tracking as is_tracking
-            FROM {$ledger_item_table} li
-            JOIN {$products_table} p ON li.local_product_name_id = p.local_product_name_id
-            WHERE li.local_ledger_id = %d
+        // Lấy local_ledger_item_id từ phiếu cha
+        $source_ledger = $wpdb->get_row($wpdb->prepare("
+            SELECT local_ledger_item_id FROM {$ledger_table}
+            WHERE local_ledger_id = %d
         ", $source_ledger_id));
+
+        $items = [];
+        if ($source_ledger && !empty($source_ledger->local_ledger_item_id)) {
+            $item_ids = json_decode($source_ledger->local_ledger_item_id, true) ?: [];
+            if (!empty($item_ids)) {
+                $item_ids_str = implode(',', array_map('intval', $item_ids));
+                $items = $wpdb->get_results("
+                    SELECT li.*,
+                           p.local_product_name as product_name,
+                           p.local_product_barcode_main as barcode_main,
+                           p.local_product_is_tracking as is_tracking
+                    FROM {$ledger_item_table} li
+                    JOIN {$products_table} p ON li.local_product_name_id = p.local_product_name_id
+                    WHERE li.local_ledger_item_id IN ({$item_ids_str})
+                    AND (li.is_deleted = 0 OR li.is_deleted IS NULL)
+                ");
+            }
+        }
 
         restore_current_blog();
 
