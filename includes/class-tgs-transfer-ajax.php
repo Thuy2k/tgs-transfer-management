@@ -482,6 +482,7 @@ class TGS_Transfer_Ajax
         $current_user_id = get_current_user_id();
 
         $ledger_id = intval($_POST['ledger_id'] ?? 0);
+        $ledger_type = intval($_POST['ledger_type'] ?? 0);
         $note = sanitize_textarea_field($_POST['note'] ?? '');
 
         if (!$ledger_id) {
@@ -494,27 +495,43 @@ class TGS_Transfer_Ajax
         $transfer_table = $wpdb->prefix . 'transfer_ledger';
         $lots_table = TGS_TABLE_GLOBAL_PRODUCT_LOTS;
 
-        // Lấy thông tin phiếu
-        $ledger = $wpdb->get_row($wpdb->prepare("
+        // Lấy thông tin phiếu con xuất kho (type 2 - SALE)
+        $child_ledger = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$ledger_table}
             WHERE local_ledger_id = %d
             AND local_ledger_type = %d
-        ", $ledger_id, TGS_LEDGER_TYPE_TRANSFER_EXPORT));
+        ", $ledger_id, TGS_LEDGER_TYPE_SALE));
 
-        if (!$ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu']);
+        if (!$child_ledger) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu xuất kho']);
         }
 
-        if ($ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED) {
+        if ($child_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED) {
             wp_send_json_error(['message' => 'Phiếu đã được duyệt trước đó']);
         }
 
-        // Lấy thông tin transfer
+        // Tìm phiếu cha TRANSFER_EXPORT (type 12)
+        $parent_id = intval($child_ledger->local_ledger_parent_id);
+        if (!$parent_id) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu cha']);
+        }
+
+        $parent_ledger = $wpdb->get_row($wpdb->prepare("
+            SELECT * FROM {$ledger_table}
+            WHERE local_ledger_id = %d
+            AND local_ledger_type = %d
+        ", $parent_id, TGS_LEDGER_TYPE_TRANSFER_EXPORT));
+
+        if (!$parent_ledger) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu xuất đến shop con']);
+        }
+
+        // Lấy thông tin transfer từ phiếu cha
         $transfer = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$transfer_table}
             WHERE source_ledger_id = %d
             AND source_blog_id = %d
-        ", $ledger_id, $current_blog_id));
+        ", $parent_id, $current_blog_id));
 
         if (!$transfer) {
             wp_send_json_error(['message' => 'Không tìm thấy thông tin transfer']);
@@ -522,7 +539,7 @@ class TGS_Transfer_Ajax
 
         $destination_blog_id = $transfer->destination_blog_id;
 
-        // Lấy các item
+        // Lấy các item từ phiếu con xuất kho
         $items = $wpdb->get_results($wpdb->prepare("
             SELECT li.*, p.local_product_name, p.local_product_barcode_main, p.local_product_is_tracking
             FROM {$ledger_item_table} li
@@ -563,7 +580,7 @@ class TGS_Transfer_Ajax
                             'source_blog_id' => $current_blog_id,
                             'destination_blog_id' => $destination_blog_id,
                             'ledger_id' => $ledger_id,
-                            'ledger_code' => $ledger->local_ledger_code ?? ''
+                            'ledger_code' => $child_ledger->local_ledger_code ?? ''
                         ]);
                     }
 
@@ -577,7 +594,7 @@ class TGS_Transfer_Ajax
                 self::sync_product_to_destination($item, $destination_blog_id, $current_blog_id);
             }
 
-            // Cập nhật trạng thái phiếu
+            // Cập nhật trạng thái phiếu con xuất kho
             $wpdb->update($ledger_table, [
                 'local_ledger_approver_status' => TGS_APPROVER_STATUS_APPROVED,
                 'local_ledger_status' => TGS_LEDGER_STATUS_APPROVED,
@@ -588,22 +605,24 @@ class TGS_Transfer_Ajax
             // Cập nhật transfer_ledger - sẵn sàng cho shop đích nhận
             $wpdb->update($transfer_table, [
                 'transfer_status' => TGS_TRANSFER_STATUS_PENDING, // Vẫn pending, chờ shop đích nhận
-                'transfer_note' => $transfer->transfer_note . "\n[Duyệt xuất] " . date('d/m/Y H:i') . ": " . $note
+                'transfer_note' => $transfer->transfer_note . "\n[Duyệt xuất kho] " . date('d/m/Y H:i') . ": " . $note
             ], ['transfer_ledger_id' => $transfer->transfer_ledger_id]);
 
             $wpdb->query('COMMIT');
 
-            // Thêm log duyệt phiếu xuất transfer
+            // Thêm log duyệt phiếu xuất kho
             $dest_shop_name = get_blog_option($destination_blog_id, 'blogname');
             TGS_Shop_Ticket_Helper::add_ticket_log($ledger_id, 'approve', [
                 'destination_blog_id' => $destination_blog_id,
                 'destination_shop_name' => $dest_shop_name,
                 'items_count' => count($items),
-                'note' => $note
-            ], !empty($note) ? $note : 'Duyệt phiếu xuất đến shop: ' . $dest_shop_name);
+                'note' => $note,
+                'parent_ledger_id' => $parent_id,
+                'parent_ledger_code' => $parent_ledger->local_ledger_code ?? ''
+            ], !empty($note) ? $note : 'Duyệt phiếu xuất kho (chuyển đến shop: ' . $dest_shop_name . ')');
 
             wp_send_json_success([
-                'message' => 'Duyệt phiếu xuất thành công. Shop đích có thể nhận hàng.'
+                'message' => 'Duyệt phiếu xuất kho thành công. Shop đích có thể nhận hàng.'
             ]);
 
         } catch (Exception $e) {
@@ -1145,22 +1164,38 @@ class TGS_Transfer_Ajax
         $products_table = $wpdb->prefix . 'local_product_name';
         $lots_table = TGS_TABLE_GLOBAL_PRODUCT_LOTS;
 
-        // Lấy thông tin phiếu
-        $ledger = $wpdb->get_row($wpdb->prepare("
+        // Lấy thông tin phiếu con nhập kho (type 1 - PURCHASE)
+        $child_ledger = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$ledger_table}
             WHERE local_ledger_id = %d
             AND local_ledger_type = %d
-        ", $ledger_id, TGS_LEDGER_TYPE_TRANSFER_IMPORT));
+        ", $ledger_id, TGS_LEDGER_TYPE_PURCHASE));
 
-        if (!$ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu']);
+        if (!$child_ledger) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu nhập kho']);
         }
 
-        if ($ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED) {
+        if ($child_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED) {
             wp_send_json_error(['message' => 'Phiếu đã được duyệt trước đó']);
         }
 
-        // Lấy các item
+        // Tìm phiếu cha TRANSFER_IMPORT (type 13)
+        $parent_id = intval($child_ledger->local_ledger_parent_id);
+        if (!$parent_id) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu cha']);
+        }
+
+        $parent_ledger = $wpdb->get_row($wpdb->prepare("
+            SELECT * FROM {$ledger_table}
+            WHERE local_ledger_id = %d
+            AND local_ledger_type = %d
+        ", $parent_id, TGS_LEDGER_TYPE_TRANSFER_IMPORT));
+
+        if (!$parent_ledger) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu nhập từ shop mẹ']);
+        }
+
+        // Lấy các item từ phiếu con nhập kho
         $items = $wpdb->get_results($wpdb->prepare("
             SELECT li.*, p.local_product_name, p.local_product_is_tracking
             FROM {$ledger_item_table} li
@@ -1168,12 +1203,12 @@ class TGS_Transfer_Ajax
             WHERE li.local_ledger_id = %d
         ", $ledger_id));
 
-        // Tìm transfer_ledger trước để xác định is_partial
+        // Tìm transfer_ledger thông qua phiếu cha để xác định is_partial
         $local_transfer_table = $wpdb->prefix . 'transfer_ledger';
         $local_transfer = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$local_transfer_table}
             WHERE destination_ledger_id = %d
-        ", $ledger_id));
+        ", $parent_id));
 
         // Xác định có phải nhập 1 phần không bằng cách so sánh với phiếu xuất gốc
         $is_partial = false;
@@ -1256,7 +1291,7 @@ class TGS_Transfer_Ajax
                             'source_blog_id' => $source_blog_id,
                             'to_blog_id' => $current_blog_id,
                             'ledger_id' => $ledger_id,
-                            'ledger_code' => $ledger->local_ledger_code ?? ''
+                            'ledger_code' => $child_ledger->local_ledger_code ?? ''
                         ]);
                     }
 
@@ -1346,7 +1381,7 @@ class TGS_Transfer_Ajax
                             'source_blog_id' => $source_blog_id,
                             'to_blog_id' => $current_blog_id,
                             'ledger_id' => $ledger_id,
-                            'ledger_code' => $ledger->local_ledger_code ?? '',
+                            'ledger_code' => $child_ledger->local_ledger_code ?? '',
                             'reason' => 'Không được nhập trong phiếu nhập 1 phần'
                         ]);
                     }
@@ -1356,7 +1391,7 @@ class TGS_Transfer_Ajax
 
             $wpdb->query('COMMIT');
 
-            // Thêm log duyệt phiếu nhập transfer
+            // Thêm log duyệt phiếu nhập kho
             $source_shop_name = $local_transfer ? get_blog_option(intval($local_transfer->source_blog_id), 'blogname') : '';
             TGS_Shop_Ticket_Helper::add_ticket_log($ledger_id, 'approve', [
                 'source_blog_id' => $local_transfer ? intval($local_transfer->source_blog_id) : 0,
@@ -1364,12 +1399,14 @@ class TGS_Transfer_Ajax
                 'items_count' => count($items),
                 'is_partial' => $is_partial,
                 'transfer_status' => $final_transfer_status,
-                'note' => $note
-            ], !empty($note) ? $note : ($is_partial ? 'Duyệt phiếu nhập (1 phần) từ shop: ' . $source_shop_name : 'Duyệt phiếu nhập từ shop: ' . $source_shop_name));
+                'note' => $note,
+                'parent_ledger_id' => $parent_id,
+                'parent_ledger_code' => $parent_ledger->local_ledger_code ?? ''
+            ], !empty($note) ? $note : ($is_partial ? 'Duyệt phiếu nhập kho (1 phần) từ shop: ' . $source_shop_name : 'Duyệt phiếu nhập kho từ shop: ' . $source_shop_name));
 
             $status_message = $is_partial
-                ? 'Duyệt phiếu nhập thành công (Nhập 1 phần). Hàng đã vào kho.'
-                : 'Duyệt phiếu nhập thành công. Hàng đã vào kho.';
+                ? 'Duyệt phiếu nhập kho thành công (Nhập 1 phần). Hàng đã vào kho.'
+                : 'Duyệt phiếu nhập kho thành công. Hàng đã vào kho.';
 
             wp_send_json_success([
                 'message' => $status_message,
