@@ -1,6 +1,6 @@
 <?php
 /**
- * Chi tiết phiếu nhập từ shop mẹ
+ * Chi tiết phiếu mua nội bộ
  *
  * Sử dụng ticket detail base
  *

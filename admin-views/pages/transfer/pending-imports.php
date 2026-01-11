@@ -1,6 +1,6 @@
 <?php
 /**
- * Danh sách phiếu chờ nhận từ shop mẹ
+ * Danh sách phiếu chờ mua từ shop bán
  *
  * Hiển thị các transfer đang pending cần nhận hàng
  *
@@ -21,7 +21,7 @@ $current_blog_id = get_current_blog_id();
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div class="d-flex flex-column justify-content-center">
             <h4 class="mb-1">
-                Phiếu chờ nhận từ shop mẹ
+                Phiếu chờ mua từ shop bán
             </h4>
             <p class="text-muted mb-0">
                 <a href="<?php echo admin_url('admin.php?page=tgs-shop-management'); ?>">Dashboard</a>
@@ -55,7 +55,7 @@ $current_blog_id = get_current_blog_id();
         <div class="card-body text-center py-5">
             <i class="bx bx-package text-muted" style="font-size: 64px;"></i>
             <h5 class="mt-3 text-muted">Không có phiếu chờ nhận</h5>
-            <p class="text-muted mb-0">Hiện tại không có hàng nào đang chờ nhận từ shop mẹ.</p>
+            <p class="text-muted mb-0">Hiện tại không có hàng nào đang chờ mua từ shop bán.</p>
         </div>
     </div>
 
@@ -169,11 +169,11 @@ jQuery(document).ready(function($) {
                                 ${item.transfer_status == 1 ? `
                                     <a href="<?php echo admin_url('admin.php?page=tgs-shop-management&view=transfer-import-add'); ?>&transfer_id=${item.transfer_id}"
                                        class="btn btn-success">
-                                        <i class="bx bx-import"></i> Tạo phiếu nhập
+                                        <i class="bx bx-import"></i> Tạo phiếu mua
                                     </a>
                                 ` : `
                                     <button class="btn btn-outline-secondary" disabled>
-                                        Chờ shop mẹ duyệt
+                                        Chờ shop bán duyệt
                                     </button>
                                 `}
                             </div>

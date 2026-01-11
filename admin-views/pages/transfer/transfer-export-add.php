@@ -1,6 +1,6 @@
 <?php
 /**
- * Transfer Export Add - Tạo phiếu xuất hàng đến shop con
+ * Transfer Export Add - Tạo phiếu bán hàng nội bộ
  *
  * @package tgs_shop_management
  */
@@ -18,12 +18,12 @@ $current_user = wp_get_current_user();
 $current_user_email = $current_user->user_email;
 
 // Sinh mã phiếu tự động (giống backend)
-$auto_ledger_code = 'TXS-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
+$auto_ledger_code = 'BNB-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
 
 // Lấy thời gian hiện tại
 $current_time = current_time('d/m/Y H:i:s');
 
-// Lấy danh sách các shop con trong multisite
+// Lấy danh sách các shop khác trong multisite
 $sites = [];
 if (is_multisite()) {
     $all_sites = get_sites(['number' => 1000]);
@@ -44,11 +44,11 @@ if (is_multisite()) {
     <!-- Breadcrumb & Header -->
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div class="d-flex flex-column justify-content-center">
-            <h4 class="mb-1">Xuất hàng đến Shop con</h4>
+            <h4 class="mb-1">Bán hàng nội bộ</h4>
             <p class="text-muted mb-0">
                 <a href="<?php echo admin_url('admin.php?page=tgs-shop-management'); ?>">Dashboard</a>
                 <span class="mx-1">/</span>
-                <a href="<?php echo admin_url('admin.php?page=tgs-shop-management&view=ticket-transfer-exports'); ?>">Phiếu xuất đến shop</a>
+                <a href="<?php echo admin_url('admin.php?page=tgs-shop-management&view=ticket-transfer-exports'); ?>">Phiếu bán nội bộ</a>
                 <span class="mx-1">/</span>
                 <span>Tạo mới</span>
             </p>
@@ -87,20 +87,20 @@ if (is_multisite()) {
                                 <small class="text-muted">Mã tự động sinh bởi hệ thống</small>
                             </div>
 
-                            <!-- Shop nhận -->
+                            <!-- Shop mua -->
                             <div class="col-12 col-md-6 col-lg-3 mb-3">
                                 <label class="form-label" for="destinationBlogId">
-                                    Shop nhận <span class="text-danger">*</span>
+                                    Shop mua <span class="text-danger">*</span>
                                 </label>
                                 <select class="form-select" id="destinationBlogId" name="destination_blog_id" required>
-                                    <option value="">-- Chọn shop nhận --</option>
+                                    <option value="">-- Chọn shop mua --</option>
                                     <?php foreach ($sites as $site): ?>
                                         <option value="<?php echo esc_attr($site['blog_id']); ?>">
                                             <?php echo esc_html($site['name']); ?> (ID: <?php echo esc_html($site['blog_id']); ?>)
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <small class="text-muted">Chọn shop con sẽ nhận hàng</small>
+                                <small class="text-muted">Chọn shop sẽ mua hàng</small>
                             </div>
 
                             <!-- Nhân viên thực hiện -->
@@ -125,7 +125,7 @@ if (is_multisite()) {
                             <div class="col-12 mb-3">
                                 <label class="form-label" for="transferNote">Ghi chú phiếu</label>
                                 <textarea class="form-control" id="transferNote" name="transfer_note" rows="2"
-                                          placeholder="Nhập ghi chú cho phiếu xuất..."></textarea>
+                                          placeholder="Nhập ghi chú cho phiếu bán..."></textarea>
                             </div>
                         </div>
                     </div>
@@ -196,8 +196,8 @@ if (is_multisite()) {
                     <ul class="mb-0 ps-3">
                         <li><strong>Sản phẩm có tracking HSD:</strong> Scan hoặc nhập mã định danh (mỗi mã 1 dòng)</li>
                         <li><strong>Sản phẩm không tracking:</strong> Nhập số lượng cần xuất</li>
-                        <li>Sản phẩm chưa có ở shop nhận sẽ được <strong>đồng bộ tự động</strong></li>
-                        <li>Phiếu xuất cần được <strong>duyệt</strong> trước khi shop con có thể nhận hàng</li>
+                        <li>Sản phẩm chưa có ở shop mua sẽ được <strong>đồng bộ tự động</strong></li>
+                        <li>Phiếu bán cần được <strong>duyệt</strong> trước khi shop mua có thể nhận hàng</li>
                     </ul>
                 </div>
             </div>
@@ -224,7 +224,7 @@ if (is_multisite()) {
                                 </div>
                             </div>
                             <button type="submit" class="btn btn-primary btn-lg" id="btnSubmit">
-                                <i class="bx bx-save me-1"></i> Tạo phiếu xuất
+                                <i class="bx bx-save me-1"></i> Tạo phiếu bán
                             </button>
                         </div>
                     </div>
@@ -293,7 +293,7 @@ if (is_multisite()) {
                 <div class="spinner-border text-primary mb-3" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
-                <p id="syncCheckMessage">Đang kiểm tra sản phẩm tại shop đích...</p>
+                <p id="syncCheckMessage">Đang kiểm tra sản phẩm tại shop mua...</p>
                 <div id="syncProgress" class="progress d-none">
                     <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
                 </div>
@@ -678,7 +678,7 @@ if (is_multisite()) {
         if (syncCheckModal) {
             syncCheckModal.show();
         }
-        $('#syncCheckMessage').text('Đang kiểm tra sản phẩm tại shop đích...');
+        $('#syncCheckMessage').text('Đang kiểm tra sản phẩm tại shop mua...');
         $('#syncProgress').addClass('d-none');
 
         const productIds = selectedProducts.map(p => p.id);
@@ -718,14 +718,14 @@ if (is_multisite()) {
         // Update UI for each product
         synced.forEach(function(productId) {
             $(`tr[data-product-id="${productId}"] .sync-status`)
-                .html('<i class="bx bx-check-circle text-success" title="Đã có tại shop đích"></i>');
+                .html('<i class="bx bx-check-circle text-success" title="Đã có tại shop mua"></i>');
         });
 
         if (needSync.length === 0) {
             if (syncCheckModal) {
                 syncCheckModal.hide();
             }
-            showAlert('success', 'Tất cả sản phẩm đã có tại shop đích');
+            showAlert('success', 'Tất cả sản phẩm đã có tại shop mua');
             return;
         }
 
@@ -737,7 +737,7 @@ if (is_multisite()) {
 
         $('#syncCheckMessage').html(`
             <div class="alert alert-warning mb-0">
-                <strong>${needSync.length} sản phẩm</strong> chưa có tại shop đích.<br>
+                <strong>${needSync.length} sản phẩm</strong> chưa có tại shop mua.<br>
                 Hệ thống sẽ tự động đồng bộ khi tạo phiếu.
             </div>
         `);
@@ -754,7 +754,7 @@ if (is_multisite()) {
 
         const destinationBlogId = $('#destinationBlogId').val();
         if (!destinationBlogId) {
-            showAlert('danger', 'Vui lòng chọn shop nhận');
+            showAlert('danger', 'Vui lòng chọn shop mua');
             return;
         }
 
@@ -840,19 +840,19 @@ if (is_multisite()) {
             },
             success: function(response) {
                 if (response.success) {
-                    showAlert('success', 'Tạo phiếu xuất thành công! Đang chuyển hướng...');
+                    showAlert('success', 'Tạo phiếu bán thành công! Đang chuyển hướng...');
                     setTimeout(function() {
                         window.location.href = response.data.redirect_url ||
                             '<?php echo admin_url("admin.php?page=tgs-shop-management&view=ticket-transfer-exports"); ?>';
                     }, 1500);
                 } else {
-                    showAlert('danger', response.data.message || 'Lỗi tạo phiếu xuất');
-                    $('#btnSubmit').prop('disabled', false).html('<i class="bx bx-save me-1"></i> Tạo phiếu xuất');
+                    showAlert('danger', response.data.message || 'Lỗi tạo phiếu bán');
+                    $('#btnSubmit').prop('disabled', false).html('<i class="bx bx-save me-1"></i> Tạo phiếu bán');
                 }
             },
             error: function() {
                 showAlert('danger', 'Lỗi kết nối server');
-                $('#btnSubmit').prop('disabled', false).html('<i class="bx bx-save me-1"></i> Tạo phiếu xuất');
+                $('#btnSubmit').prop('disabled', false).html('<i class="bx bx-save me-1"></i> Tạo phiếu bán');
             }
         });
     }

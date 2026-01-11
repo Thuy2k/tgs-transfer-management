@@ -199,12 +199,12 @@ class TGS_Transfer_Ajax
             $products_table = $wpdb->prefix . 'local_product_name';
             $lots_table = TGS_TABLE_GLOBAL_PRODUCT_LOTS;
 
-            // 1. Tạo mã phiếu cha (xuất xuống con)
+            // 1. Tạo mã phiếu cha (bán nội bộ)
             if (empty($ledger_code)) {
-                $ledger_code = 'TXS-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
+                $ledger_code = 'BNB-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
             }
             // Mã phiếu con (xuất tự động)
-            $auto_export_code = 'AXS-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
+            $auto_export_code = 'ABN-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
 
             // ========== BƯỚC 1: Validate và chuẩn bị items ==========
             $total_amount = 0;
@@ -983,10 +983,10 @@ class TGS_Transfer_Ajax
             $products_table = $wpdb->prefix . 'local_product_name';
             $lots_table = TGS_TABLE_GLOBAL_PRODUCT_LOTS;
 
-            // Tạo mã phiếu cha (nhập từ mẹ)
-            $parent_ledger_code = 'TNM-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
+            // Tạo mã phiếu cha (mua nội bộ)
+            $parent_ledger_code = 'MNB-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
             // Mã phiếu con (nhập tự động)
-            $auto_import_code = 'ANM-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
+            $auto_import_code = 'AMN-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
 
             // Tính tổng giá trị và xử lý các item
             $total_amount = 0;

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: TGS Transfer Management
  * Plugin URI: https://bizgpt.vn/
- * Description: Plugin quản lý chuyển kho liên shop (xuất từ mẹ xuống con, từ con nhận mẹ) - Extension của TGS Shop Management
+ * Description: Plugin quản lý mua bán nội bộ giữa các shop - Extension của TGS Shop Management
  * Version: 1.0.0
  * Author: BIZGPT_AI
  * Author URI: https://bizgpt.vn/
@@ -121,14 +121,14 @@ class TGS_Transfer_Management
     public function register_routes($routes)
     {
         $transfer_routes = [
-            'transfer-export-add' => ['Xuất hàng đến shop con', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/transfer-export-add.php'],
-            'ticket-transfer-exports' => ['Phiếu xuất đến shop con', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/list-export.php'],
-            'ticket-transfer-export-detail' => ['Chi tiết phiếu xuất đến shop', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/detail-export.php'],
-            'transfer-pending-imports' => ['Phiếu chờ nhận từ shop mẹ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/pending-imports.php'],
-            'transfer-import-add' => ['Nhận hàng từ shop mẹ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/transfer-import-add.php'],
-            'ticket-transfer-imports' => ['Phiếu nhập từ shop mẹ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/list-import.php'],
-            'ticket-transfer-import-detail' => ['Chi tiết phiếu nhập từ shop mẹ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/detail-import.php'],
-            'transfer-report' => ['Báo cáo chuyển kho liên shop', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/transfer-report.php'],
+            'transfer-export-add' => ['Bán hàng nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/transfer-export-add.php'],
+            'ticket-transfer-exports' => ['DS phiếu bán nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/list-export.php'],
+            'ticket-transfer-export-detail' => ['Chi tiết phiếu bán nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/detail-export.php'],
+            'transfer-pending-imports' => ['Phiếu chờ mua từ shop bán', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/pending-imports.php'],
+            'transfer-import-add' => ['Mua hàng nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/transfer-import-add.php'],
+            'ticket-transfer-imports' => ['DS phiếu mua nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/list-import.php'],
+            'ticket-transfer-import-detail' => ['Chi tiết phiếu mua nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/detail-import.php'],
+            'transfer-report' => ['Báo cáo mua bán nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/transfer-report.php'],
         ];
 
         return array_merge($routes, $transfer_routes);
@@ -155,7 +155,7 @@ class TGS_Transfer_Management
         <li class="menu-item <?php echo $is_active; ?>">
             <a href="javascript:void(0);" class="menu-link menu-toggle">
                 <i class="menu-icon tf-icons bx bx-store"></i>
-                <div>Chuyển kho liên shop</div>
+                <div>Mua bán nội bộ</div>
             </a>
             <ul class="menu-sub">
                 <li class="menu-item <?php echo $current_view === 'transfer-report' ? 'active' : ''; ?>">
@@ -167,25 +167,25 @@ class TGS_Transfer_Management
                 <li class="menu-item <?php echo $current_view === 'transfer-export-add' ? 'active' : ''; ?>">
                     <a href="<?php echo tgs_url('transfer-export-add'); ?>" class="menu-link">
                         <i class="bx bx-share text-info me-1"></i>
-                        <div>Xuất đến shop con</div>
+                        <div>Bán hàng nội bộ</div>
                     </a>
                 </li>
                 <li class="menu-item <?php echo in_array($current_view, ['ticket-transfer-exports', 'ticket-transfer-export-detail']) ? 'active' : ''; ?>">
                     <a href="<?php echo tgs_url('ticket-transfer-exports'); ?>" class="menu-link">
                         <i class="bx bx-list-ul me-1"></i>
-                        <div>DS phiếu xuất đi</div>
+                        <div>DS phiếu bán nội bộ</div>
                     </a>
                 </li>
                 <li class="menu-item <?php echo $current_view === 'transfer-pending-imports' ? 'active' : ''; ?>">
                     <a href="<?php echo tgs_url('transfer-pending-imports'); ?>" class="menu-link">
                         <i class="bx bx-time text-warning me-1"></i>
-                        <div>Chờ nhận từ shop mẹ</div>
+                        <div>Chờ mua từ shop bán</div>
                     </a>
                 </li>
                 <li class="menu-item <?php echo in_array($current_view, ['ticket-transfer-imports', 'ticket-transfer-import-detail']) ? 'active' : ''; ?>">
                     <a href="<?php echo tgs_url('ticket-transfer-imports'); ?>" class="menu-link">
                         <i class="bx bx-download text-success me-1"></i>
-                        <div>DS phiếu nhập về</div>
+                        <div>DS phiếu mua nội bộ</div>
                     </a>
                 </li>
             </ul>

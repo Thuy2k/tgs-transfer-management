@@ -1,6 +1,6 @@
 <?php
 /**
- * Danh sách phiếu xuất đến shop con
+ * Danh sách phiếu bán nội bộ
  *
  * Sử dụng ticket list base
  *
