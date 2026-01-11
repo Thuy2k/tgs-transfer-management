@@ -889,10 +889,27 @@ class TGS_Transfer_Ajax
             wp_send_json_error(['message' => 'Không tìm thấy phiếu xuất nguồn']);
         }
 
-        // Kiểm tra phiếu xuất đã duyệt chưa
-        if ($source_ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
-            restore_current_blog();
-            wp_send_json_error(['message' => 'Phiếu xuất chưa được shop mẹ duyệt']);
+        // Kiểm tra phiếu xuất tự động (phiếu con) đã duyệt chưa
+        // Phiếu xuất tự động có local_ledger_parent_id = phiếu cha (type 12)
+        $auto_export_ledger = $wpdb->get_row($wpdb->prepare("
+            SELECT local_ledger_id, local_ledger_approver_status
+            FROM {$source_ledger_table}
+            WHERE local_ledger_parent_id = %d
+            AND local_ledger_type = %d
+        ", $source_ledger_id, TGS_LEDGER_TYPE_SALE));
+
+        if ($auto_export_ledger) {
+            // Check trạng thái duyệt của phiếu xuất tự động
+            if ($auto_export_ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
+                restore_current_blog();
+                wp_send_json_error(['message' => 'Phiếu xuất tự động chưa được shop mẹ duyệt']);
+            }
+        } else {
+            // Fallback: nếu không có phiếu con thì check phiếu cha
+            if ($source_ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
+                restore_current_blog();
+                wp_send_json_error(['message' => 'Phiếu xuất chưa được shop mẹ duyệt']);
+            }
         }
 
         // Lấy các item từ local_ledger_item_id (JSON array của item IDs từ phiếu con xuất kho)
@@ -1628,6 +1645,29 @@ class TGS_Transfer_Ajax
             $transfer->local_ledger_total_amount = $ledger->local_ledger_total_amount;
             $transfer->local_ledger_note = $ledger->local_ledger_note;
             $transfer->local_ledger_approver_status = $ledger->local_ledger_approver_status;
+        }
+
+        // Kiểm tra phiếu xuất tự động (phiếu con) đã duyệt chưa
+        // Phiếu xuất tự động có local_ledger_parent_id = phiếu cha (type 12)
+        $auto_export_ledger = $wpdb->get_row($wpdb->prepare("
+            SELECT local_ledger_id, local_ledger_approver_status
+            FROM {$ledger_table}
+            WHERE local_ledger_parent_id = %d
+            AND local_ledger_type = %d
+        ", $source_ledger_id, TGS_LEDGER_TYPE_SALE));
+
+        if ($auto_export_ledger) {
+            // Check trạng thái duyệt của phiếu xuất tự động
+            if ($auto_export_ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
+                restore_current_blog();
+                wp_send_json_error(['message' => 'Phiếu chuyển này chưa được shop mẹ duyệt xuất.']);
+            }
+        } else {
+            // Fallback: nếu không có phiếu con thì check phiếu cha
+            if ($ledger && $ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
+                restore_current_blog();
+                wp_send_json_error(['message' => 'Phiếu chuyển này chưa được shop mẹ duyệt xuất.']);
+            }
         }
 
         $transfer->source_shop_name = get_bloginfo('name');
