@@ -13,6 +13,16 @@ $ajax_url = admin_url('admin-ajax.php');
 $nonce = wp_create_nonce('tgs_transfer_nonce');
 $current_blog_id = get_current_blog_id();
 
+// Lấy thông tin người dùng hiện tại
+$current_user = wp_get_current_user();
+$current_user_email = $current_user->user_email;
+
+// Sinh mã phiếu tự động (giống backend)
+$auto_ledger_code = 'TXS-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
+
+// Lấy thời gian hiện tại
+$current_time = current_time('d/m/Y H:i:s');
+
 // Lấy danh sách các shop con trong multisite
 $sites = [];
 if (is_multisite()) {
@@ -57,9 +67,9 @@ if (is_multisite()) {
     </div>
 
     <form id="transferExportForm">
-        <div class="row">
-            <!-- Left Column: Thông tin chung -->
-            <div class="col-12 col-lg-4 mb-4">
+        <!-- Row 1: Thông tin phiếu -->
+        <div class="row mb-4">
+            <div class="col-12">
                 <div class="card">
                     <div class="card-header">
                         <h5 class="card-title mb-0">
@@ -67,63 +77,65 @@ if (is_multisite()) {
                         </h5>
                     </div>
                     <div class="card-body">
-                        <!-- Shop đích -->
-                        <div class="mb-3">
-                            <label class="form-label" for="destinationBlogId">
-                                Shop nhận <span class="text-danger">*</span>
-                            </label>
-                            <select class="form-select" id="destinationBlogId" name="destination_blog_id" required>
-                                <option value="">-- Chọn shop nhận --</option>
-                                <?php foreach ($sites as $site): ?>
-                                    <option value="<?php echo esc_attr($site['blog_id']); ?>">
-                                        <?php echo esc_html($site['name']); ?> (ID: <?php echo esc_html($site['blog_id']); ?>)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <small class="text-muted">Chọn shop con sẽ nhận hàng</small>
-                        </div>
-
-                        <!-- Mã phiếu -->
-                        <div class="mb-3">
-                            <label class="form-label" for="ledgerCode">Mã phiếu</label>
-                            <input type="text" class="form-control" id="ledgerCode" name="ledger_code"
-                                   placeholder="Để trống để tự động sinh">
-                            <small class="text-muted">Bỏ trống để hệ thống tự tạo mã</small>
-                        </div>
-
-                        <!-- Ghi chú -->
-                        <div class="mb-3">
-                            <label class="form-label" for="transferNote">Ghi chú</label>
-                            <textarea class="form-control" id="transferNote" name="transfer_note" rows="3"
-                                      placeholder="Nhập ghi chú cho phiếu xuất..."></textarea>
-                        </div>
-
-                        <!-- Thông tin tổng -->
-                        <div class="border-top pt-3 mt-3">
-                            <div class="d-flex justify-content-between mb-2">
-                                <span class="text-muted">Tổng sản phẩm:</span>
-                                <span class="fw-bold" id="totalProducts">0</span>
+                        <div class="row">
+                            <!-- Mã phiếu - tự động sinh -->
+                            <div class="col-12 col-md-6 col-lg-3 mb-3">
+                                <label class="form-label" for="ledgerCode">Mã phiếu</label>
+                                <input type="text" class="form-control" id="ledgerCode" name="ledger_code"
+                                       value="<?php echo esc_attr($auto_ledger_code); ?>" readonly
+                                       style="background-color: #e9ecef;">
+                                <small class="text-muted">Mã tự động sinh bởi hệ thống</small>
                             </div>
-                            <div class="d-flex justify-content-between mb-2">
-                                <span class="text-muted">Tổng số lượng:</span>
-                                <span class="fw-bold" id="totalQuantity">0</span>
+
+                            <!-- Shop nhận -->
+                            <div class="col-12 col-md-6 col-lg-3 mb-3">
+                                <label class="form-label" for="destinationBlogId">
+                                    Shop nhận <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="destinationBlogId" name="destination_blog_id" required>
+                                    <option value="">-- Chọn shop nhận --</option>
+                                    <?php foreach ($sites as $site): ?>
+                                        <option value="<?php echo esc_attr($site['blog_id']); ?>">
+                                            <?php echo esc_html($site['name']); ?> (ID: <?php echo esc_html($site['blog_id']); ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="text-muted">Chọn shop con sẽ nhận hàng</small>
                             </div>
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Tổng giá trị:</span>
-                                <span class="fw-bold text-primary fs-5" id="totalValue">0 đ</span>
+
+                            <!-- Nhân viên thực hiện -->
+                            <div class="col-12 col-md-6 col-lg-3 mb-3">
+                                <label class="form-label" for="employeeEmail">Nhân viên thực hiện</label>
+                                <input type="text" class="form-control" id="employeeEmail"
+                                       value="<?php echo esc_attr($current_user_email); ?>" readonly
+                                       style="background-color: #e9ecef;">
+                                <small class="text-muted">Email người tạo phiếu</small>
+                            </div>
+
+                            <!-- Thời gian -->
+                            <div class="col-12 col-md-6 col-lg-3 mb-3">
+                                <label class="form-label" for="createdTime">Thời gian tạo</label>
+                                <input type="text" class="form-control" id="createdTime"
+                                       value="<?php echo esc_attr($current_time); ?>" readonly
+                                       style="background-color: #e9ecef;">
+                                <small class="text-muted">Thời gian tạo phiếu</small>
+                            </div>
+
+                            <!-- Ghi chú phiếu -->
+                            <div class="col-12 mb-3">
+                                <label class="form-label" for="transferNote">Ghi chú phiếu</label>
+                                <textarea class="form-control" id="transferNote" name="transfer_note" rows="2"
+                                          placeholder="Nhập ghi chú cho phiếu xuất..."></textarea>
                             </div>
                         </div>
-                    </div>
-                    <div class="card-footer">
-                        <button type="submit" class="btn btn-primary w-100" id="btnSubmit">
-                            <i class="bx bx-save me-1"></i> Tạo phiếu xuất
-                        </button>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Right Column: Danh sách sản phẩm -->
-            <div class="col-12 col-lg-8 mb-4">
+        <!-- Row 2: Danh sách sản phẩm -->
+        <div class="row mb-4">
+            <div class="col-12">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <h5 class="card-title mb-0">
@@ -139,23 +151,40 @@ if (is_multisite()) {
                                 <thead class="table-light">
                                     <tr>
                                         <th style="width: 3%">#</th>
-                                        <th style="width: 25%">Sản phẩm</th>
-                                        <th style="width: 10%">Tracking</th>
-                                        <th style="width: 10%">Tồn kho</th>
-                                        <th style="width: 20%">Mã định danh / SL</th>
-                                        <th style="width: 12%">Đơn giá</th>
-                                        <th style="width: 12%">Thành tiền</th>
-                                        <th style="width: 8%">Xóa</th>
+                                        <th style="width: 18%">Sản phẩm</th>
+                                        <th style="width: 6%">Tracking</th>
+                                        <th style="width: 6%">Tồn kho</th>
+                                        <th style="width: 14%">Mã định danh / SL</th>
+                                        <th style="width: 9%">Đơn giá</th>
+                                        <th style="width: 9%">TT không VAT</th>
+                                        <th style="width: 5%">CK(%)</th>
+                                        <th style="width: 5%">Thuế %</th>
+                                        <th style="width: 8%">Thuế VNĐ</th>
+                                        <th style="width: 9%">Thành tiền</th>
+                                        <th style="width: 10%">Ghi chú SP</th>
+                                        <th style="width: 4%">Xóa</th>
                                     </tr>
                                 </thead>
                                 <tbody id="productsTableBody">
                                     <tr id="emptyRow">
-                                        <td colspan="8" class="text-center py-4 text-muted">
+                                        <td colspan="13" class="text-center py-4 text-muted">
                                             <i class="bx bx-package fs-1 d-block mb-2"></i>
                                             Chưa có sản phẩm. Nhấn "Thêm sản phẩm" để bắt đầu.
                                         </td>
                                     </tr>
                                 </tbody>
+                                <tfoot class="table-light">
+                                    <tr>
+                                        <td colspan="5" class="text-end fw-bold">Tổng cộng:</td>
+                                        <td id="footerTotalPrice" class="fw-bold">0 đ</td>
+                                        <td id="footerSubtotal" class="fw-bold">0 đ</td>
+                                        <td></td>
+                                        <td></td>
+                                        <td id="footerTotalTax" class="fw-bold text-danger">0 đ</td>
+                                        <td id="footerGrandTotal" class="fw-bold text-primary fs-5">0 đ</td>
+                                        <td colspan="2"></td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>
@@ -170,6 +199,35 @@ if (is_multisite()) {
                         <li>Sản phẩm chưa có ở shop nhận sẽ được <strong>đồng bộ tự động</strong></li>
                         <li>Phiếu xuất cần được <strong>duyệt</strong> trước khi shop con có thể nhận hàng</li>
                     </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 3: Tổng kết và nút Lưu (sticky bottom) -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card sticky-bottom" style="bottom: 0; z-index: 100;">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                            <div class="d-flex gap-4 flex-wrap">
+                                <div>
+                                    <span class="text-muted">Tổng sản phẩm:</span>
+                                    <span class="fw-bold ms-1" id="totalProducts">0</span>
+                                </div>
+                                <div>
+                                    <span class="text-muted">Tổng số lượng:</span>
+                                    <span class="fw-bold ms-1" id="totalQuantity">0</span>
+                                </div>
+                                <div>
+                                    <span class="text-muted">Tổng giá trị:</span>
+                                    <span class="fw-bold text-primary fs-5 ms-1" id="totalValue">0 đ</span>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-lg" id="btnSubmit">
+                                <i class="bx bx-save me-1"></i> Tạo phiếu xuất
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -426,6 +484,7 @@ if (is_multisite()) {
     function addProductRow(product) {
         const isTracking = parseInt(product.is_tracking) === 1;
         const stock = isTracking ? parseInt(product.tracking_stock || 0) : parseFloat(product.no_tracking_stock || 0);
+        const taxPercent = parseFloat(product.tax_percent) || 0;
 
         $('#emptyRow').remove();
 
@@ -436,13 +495,14 @@ if (is_multisite()) {
             ? `<textarea class="form-control form-control-sm lot-barcodes" rows="2"
                          placeholder="Nhập mã định danh (mỗi mã 1 dòng)"
                          data-product-id="${product.id}"></textarea>
-               <small class="text-muted">SL: <span class="lot-count">0</span></small>`
+               <div class="mt-1"><strong style="font-size: 1.1em;">Số lượng: <span class="lot-count text-primary">0</span></strong></div>`
             : `<input type="number" class="form-control form-control-sm quantity-input"
-                      min="0" max="${stock}" step="0.001" value="1"
+                      min="1" max="${stock}" step="1" value="1"
                       data-product-id="${product.id}">`;
 
         const row = `
-            <tr id="${rowId}" data-product-id="${product.id}" data-is-tracking="${isTracking ? 1 : 0}">
+            <tr id="${rowId}" data-product-id="${product.id}" data-is-tracking="${isTracking ? 1 : 0}"
+                data-price="${product.price || 0}" data-tax-percent="${taxPercent}">
                 <td class="text-center">${productRowIndex}</td>
                 <td>
                     <strong>${escapeHtml(product.name)}</strong>
@@ -457,7 +517,18 @@ if (is_multisite()) {
                 <td class="${stock > 0 ? 'text-success' : 'text-danger'}">${formatNumber(stock)}</td>
                 <td>${inputHtml}</td>
                 <td class="product-price">${formatCurrency(product.price)}</td>
-                <td class="product-subtotal">0 đ</td>
+                <td class="product-subtotal-no-vat">0 đ</td>
+                <td>
+                    <input type="number" class="form-control form-control-sm discount-input"
+                           min="0" max="100" step="0.01" value="0" style="width: 60px;">
+                </td>
+                <td class="product-tax-percent">${taxPercent}%</td>
+                <td class="product-tax-amount text-danger">0 đ</td>
+                <td class="product-subtotal fw-bold">0 đ</td>
+                <td>
+                    <input type="text" class="form-control form-control-sm item-note"
+                           placeholder="Ghi chú..." style="width: 100%;">
+                </td>
                 <td class="text-center">
                     <button type="button" class="btn btn-sm btn-outline-danger btn-remove-product"
                             data-row-id="${rowId}" data-product-id="${product.id}">
@@ -472,39 +543,69 @@ if (is_multisite()) {
         // Bind events
         $(`#${rowId} .lot-barcodes`).on('input', handleLotBarcodesInput);
         $(`#${rowId} .quantity-input`).on('input', handleQuantityInput);
+        $(`#${rowId} .discount-input`).on('input', handleDiscountInput);
         $(`#${rowId} .btn-remove-product`).on('click', handleRemoveProduct);
+
+        // Tính toán ban đầu cho sản phẩm không tracking (quantity = 1)
+        if (!isTracking) {
+            calculateRowTotals($(`#${rowId}`));
+        }
     }
 
     function handleLotBarcodesInput() {
         const $textarea = $(this);
-        const productId = $textarea.data('product-id');
         const barcodes = $textarea.val().split('\n').filter(b => b.trim() !== '');
         const count = barcodes.length;
 
         $textarea.closest('tr').find('.lot-count').text(count);
 
-        // Calculate subtotal
-        const product = selectedProducts.find(p => p.id == productId);
-        if (product) {
-            const subtotal = count * parseFloat(product.price || 0);
-            $textarea.closest('tr').find('.product-subtotal').text(formatCurrency(subtotal));
-        }
-
+        // Calculate row totals
+        calculateRowTotals($textarea.closest('tr'));
         updateTotals();
     }
 
     function handleQuantityInput() {
         const $input = $(this);
-        const productId = $input.data('product-id');
-        const quantity = parseFloat($input.val()) || 0;
+        calculateRowTotals($input.closest('tr'));
+        updateTotals();
+    }
 
-        const product = selectedProducts.find(p => p.id == productId);
-        if (product) {
-            const subtotal = quantity * parseFloat(product.price || 0);
-            $input.closest('tr').find('.product-subtotal').text(formatCurrency(subtotal));
+    function handleDiscountInput() {
+        const $input = $(this);
+        calculateRowTotals($input.closest('tr'));
+        updateTotals();
+    }
+
+    function calculateRowTotals($row) {
+        const isTracking = $row.data('is-tracking') == 1;
+        const price = parseFloat($row.data('price')) || 0;
+        const taxPercent = parseFloat($row.data('tax-percent')) || 0;
+        const discountPercent = parseFloat($row.find('.discount-input').val()) || 0;
+
+        let quantity = 0;
+        if (isTracking) {
+            const barcodes = $row.find('.lot-barcodes').val().split('\n').filter(b => b.trim() !== '');
+            quantity = barcodes.length;
+        } else {
+            quantity = parseFloat($row.find('.quantity-input').val()) || 0;
         }
 
-        updateTotals();
+        // Tính toán
+        const subtotalNoVat = quantity * price;
+        const discountAmount = subtotalNoVat * (discountPercent / 100);
+        const afterDiscount = subtotalNoVat - discountAmount;
+        const taxAmount = afterDiscount * (taxPercent / 100);
+        const grandTotal = afterDiscount + taxAmount;
+
+        // Lưu giá trị số vào data attributes để tính tổng chính xác
+        $row.data('calc-subtotal-no-vat', subtotalNoVat);
+        $row.data('calc-tax-amount', taxAmount);
+        $row.data('calc-grand-total', grandTotal);
+
+        // Cập nhật UI
+        $row.find('.product-subtotal-no-vat').text(formatCurrency(subtotalNoVat));
+        $row.find('.product-tax-amount').text(formatCurrency(taxAmount));
+        $row.find('.product-subtotal').text(formatCurrency(grandTotal));
     }
 
     function handleRemoveProduct() {
@@ -517,7 +618,7 @@ if (is_multisite()) {
         if (selectedProducts.length === 0) {
             $('#productsTableBody').html(`
                 <tr id="emptyRow">
-                    <td colspan="8" class="text-center py-4 text-muted">
+                    <td colspan="13" class="text-center py-4 text-muted">
                         <i class="bx bx-package fs-1 d-block mb-2"></i>
                         Chưa có sản phẩm. Nhấn "Thêm sản phẩm" để bắt đầu.
                     </td>
@@ -532,28 +633,42 @@ if (is_multisite()) {
     function updateTotals() {
         let totalProducts = selectedProducts.length;
         let totalQuantity = 0;
+        let totalPrice = 0;
+        let totalSubtotalNoVat = 0;
+        let totalTax = 0;
         let totalValue = 0;
 
         $('#productsTableBody tr[data-product-id]').each(function() {
             const $row = $(this);
             const isTracking = $row.data('is-tracking') == 1;
+            const price = parseFloat($row.data('price')) || 0;
 
+            let quantity = 0;
             if (isTracking) {
                 const barcodes = $row.find('.lot-barcodes').val().split('\n').filter(b => b.trim() !== '');
-                totalQuantity += barcodes.length;
+                quantity = barcodes.length;
             } else {
-                totalQuantity += parseFloat($row.find('.quantity-input').val()) || 0;
+                quantity = parseFloat($row.find('.quantity-input').val()) || 0;
             }
 
-            // Parse subtotal
-            const subtotalText = $row.find('.product-subtotal').text();
-            const subtotal = parseFloat(subtotalText.replace(/[^\d]/g, '')) || 0;
-            totalValue += subtotal;
+            totalQuantity += quantity;
+            totalPrice += quantity * price;
+
+            // Đọc giá trị từ data attributes (đã được tính trong calculateRowTotals)
+            totalSubtotalNoVat += parseFloat($row.data('calc-subtotal-no-vat')) || 0;
+            totalTax += parseFloat($row.data('calc-tax-amount')) || 0;
+            totalValue += parseFloat($row.data('calc-grand-total')) || 0;
         });
 
         $('#totalProducts').text(totalProducts);
         $('#totalQuantity').text(formatNumber(totalQuantity));
         $('#totalValue').text(formatCurrency(totalValue));
+
+        // Footer totals
+        $('#footerTotalPrice').text(formatCurrency(totalPrice));
+        $('#footerSubtotal').text(formatCurrency(totalSubtotalNoVat));
+        $('#footerTotalTax').text(formatCurrency(totalTax));
+        $('#footerGrandTotal').text(formatCurrency(totalValue));
     }
 
     function checkProductSync() {
@@ -656,10 +771,18 @@ if (is_multisite()) {
             const $row = $(this);
             const productId = $row.data('product-id');
             const isTracking = $row.data('is-tracking') == 1;
+            const price = parseFloat($row.data('price')) || 0;
+            const taxPercent = parseFloat($row.data('tax-percent')) || 0;
+            const discountPercent = parseFloat($row.find('.discount-input').val()) || 0;
+            const itemNote = $row.find('.item-note').val() || '';
 
             const item = {
                 product_id: productId,
-                is_tracking: isTracking
+                is_tracking: isTracking,
+                price: price,
+                tax_percent: taxPercent,
+                discount_percent: discountPercent,
+                item_note: itemNote
             };
 
             if (isTracking) {
@@ -683,6 +806,18 @@ if (is_multisite()) {
                 }
                 item.quantity = quantity;
             }
+
+            // Tính toán các giá trị
+            const subtotalNoVat = item.quantity * price;
+            const discountAmount = subtotalNoVat * (discountPercent / 100);
+            const afterDiscount = subtotalNoVat - discountAmount;
+            const taxAmount = afterDiscount * (taxPercent / 100);
+            const grandTotal = afterDiscount + taxAmount;
+
+            item.subtotal_no_vat = subtotalNoVat;
+            item.discount_amount = discountAmount;
+            item.tax_amount = taxAmount;
+            item.subtotal = grandTotal;
 
             items.push(item);
         });

@@ -66,6 +66,7 @@ class TGS_Transfer_Ajax
                 p.local_product_barcode_main as barcode,
                 p.local_product_is_tracking as is_tracking,
                 p.local_product_price as price,
+                p.local_product_tax as tax_percent,
                 p.local_product_quantity_no_tracking as no_tracking_stock,
                 COALESCE(p.source_blog_id, 0) as source_blog_id,
                 JSON_UNQUOTE(JSON_EXTRACT(p.local_product_meta, '$.product_sku')) as sku
@@ -214,6 +215,12 @@ class TGS_Transfer_Ajax
                 $is_tracking = !empty($item['is_tracking']);
                 $quantity = floatval($item['quantity'] ?? 0);
 
+                // Lấy giá và thuế từ frontend (nếu có) hoặc từ DB
+                $price_from_frontend = isset($item['price']) ? floatval($item['price']) : null;
+                $tax_percent_from_frontend = isset($item['tax_percent']) ? floatval($item['tax_percent']) : null;
+                $discount_percent = floatval($item['discount_percent'] ?? 0);
+                $item_note = sanitize_text_field($item['item_note'] ?? '');
+
                 // Lấy thông tin sản phẩm
                 $product = $wpdb->get_row($wpdb->prepare("
                     SELECT * FROM {$products_table}
@@ -224,7 +231,10 @@ class TGS_Transfer_Ajax
                     throw new Exception("Sản phẩm ID {$product_id} không tồn tại");
                 }
 
-                $price = floatval($product->local_product_price ?? 0);
+                // Dùng giá từ frontend, fallback về giá trong DB
+                $price = $price_from_frontend !== null ? $price_from_frontend : floatval($product->local_product_price ?? 0);
+                // Dùng thuế từ frontend, fallback về thuế trong DB
+                $tax_percent = $tax_percent_from_frontend !== null ? $tax_percent_from_frontend : floatval($product->local_product_tax ?? 0);
 
                 if ($is_tracking) {
                     // Xử lý sản phẩm có tracking
@@ -254,13 +264,25 @@ class TGS_Transfer_Ajax
                     }
 
                     $quantity = count($lot_ids);
-                    $subtotal = $quantity * $price;
+                    // Tính toán với chiết khấu và thuế
+                    $subtotal_no_vat = $quantity * $price;
+                    $discount_amount = $subtotal_no_vat * ($discount_percent / 100);
+                    $after_discount = $subtotal_no_vat - $discount_amount;
+                    $tax_amount = $after_discount * ($tax_percent / 100);
+                    $subtotal = $after_discount + $tax_amount;
                     $total_amount += $subtotal;
 
                     $export_items_data[] = [
                         'product_id' => $product_id,
                         'quantity' => $quantity,
                         'price' => $price,
+                        'tax_percent' => $tax_percent,
+                        'tax_amount' => $tax_amount,
+                        'discount_type' => 'percent',
+                        'discount_value' => $discount_percent,
+                        'discount_amount' => $discount_amount,
+                        'subtotal' => $subtotal,
+                        'note' => $item_note,
                         'lot_barcodes' => $lot_barcodes,
                         'lot_ids' => $lot_ids,
                         'is_tracking' => true,
@@ -275,13 +297,25 @@ class TGS_Transfer_Ajax
                         throw new Exception("Số lượng xuất ({$quantity}) vượt quá tồn kho ({$available_stock}) cho sản phẩm: {$product->local_product_name}");
                     }
 
-                    $subtotal = $quantity * $price;
+                    // Tính toán với chiết khấu và thuế
+                    $subtotal_no_vat = $quantity * $price;
+                    $discount_amount = $subtotal_no_vat * ($discount_percent / 100);
+                    $after_discount = $subtotal_no_vat - $discount_amount;
+                    $tax_amount = $after_discount * ($tax_percent / 100);
+                    $subtotal = $after_discount + $tax_amount;
                     $total_amount += $subtotal;
 
                     $export_items_data[] = [
                         'product_id' => $product_id,
                         'quantity' => $quantity,
                         'price' => $price,
+                        'tax_percent' => $tax_percent,
+                        'tax_amount' => $tax_amount,
+                        'discount_type' => 'percent',
+                        'discount_value' => $discount_percent,
+                        'discount_amount' => $discount_amount,
+                        'subtotal' => $subtotal,
+                        'note' => $item_note,
                         'lot_barcodes' => [],
                         'is_tracking' => false,
                         'product' => $product
@@ -1031,14 +1065,30 @@ class TGS_Transfer_Ajax
                     ", $new_product_id));
                 }
 
+                // Lấy thông tin giá/thuế/chiết khấu từ source_item
                 $price = floatval($source_item->price ?? 0);
-                $subtotal = $import_quantity * $price;
+                $tax_percent = floatval($source_item->local_ledger_item_tax_percent ?? 0);
+                $discount_percent = floatval($source_item->local_ledger_item_discount ?? 0);
+
+                // Tính toán như trang xuất
+                $subtotal_no_vat = $import_quantity * $price;
+                $discount_amount = $subtotal_no_vat * ($discount_percent / 100);
+                $after_discount = $subtotal_no_vat - $discount_amount;
+                $tax_amount = $after_discount * ($tax_percent / 100);
+                $subtotal = $after_discount + $tax_amount;
+
                 $total_amount += $subtotal;
 
                 $import_items_data[] = [
                     'product_id' => $local_product->local_product_name_id,
                     'quantity' => $import_quantity,
                     'price' => $price,
+                    'tax_percent' => $tax_percent,
+                    'tax_amount' => $tax_amount,
+                    'discount_type' => 'percent',
+                    'discount_value' => $discount_percent,
+                    'discount_amount' => $discount_amount,
+                    'subtotal' => $subtotal,
                     'lot_barcodes' => $lot_barcodes_to_import,
                     'is_tracking' => $is_tracking,
                     'source_item' => $source_item,

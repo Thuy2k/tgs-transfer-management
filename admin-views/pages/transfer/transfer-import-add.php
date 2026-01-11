@@ -72,46 +72,49 @@ if (!$transfer_id) {
 
     <!-- Main Form -->
     <div id="mainForm" class="d-none">
-        <div class="row">
-            <!-- Left Column: Transfer Info -->
-            <div class="col-12 col-lg-8 mb-4">
-                <!-- Transfer Info Card -->
-                <div class="card mb-4">
+        <!-- Row 1: Transfer Info -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
                     <div class="card-header">
                         <h5 class="card-title mb-0">Thông tin phiếu chuyển</h5>
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-2 mb-3">
                                 <small class="text-muted d-block">Mã Transfer</small>
                                 <span class="fw-semibold" id="infoTransferId">#<?php echo esc_html($transfer_id); ?></span>
                             </div>
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-2 mb-3">
                                 <small class="text-muted d-block">Shop nguồn</small>
                                 <span class="fw-semibold" id="infoSourceShop">—</span>
                             </div>
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-2 mb-3">
                                 <small class="text-muted d-block">Phiếu xuất nguồn</small>
                                 <span id="infoSourceLedger">—</span>
                             </div>
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-2 mb-3">
                                 <small class="text-muted d-block">Ngày tạo</small>
                                 <span id="infoCreatedAt">—</span>
                             </div>
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-2 mb-3">
                                 <small class="text-muted d-block">Trạng thái</small>
                                 <span id="infoStatus">—</span>
                             </div>
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-2 mb-3">
                                 <small class="text-muted d-block">Ghi chú từ shop mẹ</small>
                                 <span class="text-muted fst-italic" id="infoNote">—</span>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- Products Card -->
-                <div class="card mb-4">
+        <!-- Row 2: Products Table (full width) -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="card-title mb-0">Sản phẩm nhận</h5>
                         <span class="badge bg-secondary" id="productCount">0 sản phẩm</span>
@@ -122,27 +125,38 @@ if (!$transfer_id) {
                                 <thead class="table-light">
                                     <tr>
                                         <th style="width: 3%;">#</th>
-                                        <th style="width: 20%;">Sản phẩm</th>
-                                        <th style="width: 12%;">Barcode</th>
-                                        <th style="width: 10%;">SL tối đa</th>
-                                        <th style="width: 15%;">Mã định danh</th>
-                                        <th style="width: 10%;">SL nhập</th>
-                                        <th style="width: 8%;">Đơn vị</th>
-                                        <th style="width: 12%;">Trạng thái</th>
+                                        <th style="width: 14%;">Sản phẩm</th>
+                                        <th style="width: 8%;">Barcode</th>
+                                        <th style="width: 5%;">SL tối đa</th>
+                                        <th style="width: 10%;">Mã định danh</th>
+                                        <th style="width: 5%;">SL nhập</th>
+                                        <th style="width: 8%;">Đơn giá</th>
+                                        <th style="width: 8%;">TT không VAT</th>
+                                        <th style="width: 5%;">CK(%)</th>
+                                        <th style="width: 5%;">Thuế %</th>
+                                        <th style="width: 7%;">Thuế VNĐ</th>
+                                        <th style="width: 8%;">Thành tiền</th>
+                                        <th style="width: 10%;">Ghi chú SP</th>
+                                        <th style="width: 6%;">Trạng thái</th>
                                     </tr>
                                 </thead>
                                 <tbody id="productsTableBody">
                                     <tr>
-                                        <td colspan="8" class="text-center py-4 text-muted">
+                                        <td colspan="14" class="text-center py-4 text-muted">
                                             Đang tải sản phẩm...
                                         </td>
                                     </tr>
                                 </tbody>
                                 <tfoot class="table-light" id="productsTableFoot" style="display: none;">
                                     <tr>
-                                        <td colspan="4" class="text-end fw-semibold">Tổng cộng:</td>
-                                        <td></td>
+                                        <td colspan="5" class="text-end fw-semibold">Tổng cộng:</td>
                                         <td class="fw-semibold" id="footTotalImport">0</td>
+                                        <td></td>
+                                        <td class="fw-semibold" id="footTotalNoVat">0 đ</td>
+                                        <td></td>
+                                        <td></td>
+                                        <td class="fw-semibold text-danger" id="footTotalTax">0 đ</td>
+                                        <td class="fw-semibold text-primary" id="footTotalAmount">0 đ</td>
                                         <td></td>
                                         <td id="footStatus">—</td>
                                     </tr>
@@ -152,48 +166,46 @@ if (!$transfer_id) {
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Right Column: Actions -->
-            <div class="col-12 col-lg-4 mb-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Tạo phiếu nhập</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label">Ghi chú phiếu nhập</label>
-                            <textarea class="form-control" id="importNote" rows="3"
-                                      placeholder="Ghi chú cho phiếu nhập (tùy chọn)..."></textarea>
+        <!-- Row 3: Actions (sticky bottom) -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card sticky-bottom" style="bottom: 0; z-index: 100;">
+                    <div class="card-body py-3">
+                        <div class="row align-items-center">
+                            <div class="col-md-4">
+                                <label class="form-label mb-1">Ghi chú phiếu nhập</label>
+                                <textarea class="form-control" id="importNote" rows="2"
+                                          placeholder="Ghi chú cho phiếu nhập (tùy chọn)..."></textarea>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="alert alert-warning mb-0 py-2" id="warningSync" style="display: none;">
+                                    <i class="bx bx-sync"></i>
+                                    <span id="warningSyncText"></span>
+                                </div>
+                                <div class="d-flex gap-4 flex-wrap" id="summaryInfo">
+                                    <div>
+                                        <span class="text-muted">Tổng sản phẩm:</span>
+                                        <span class="fw-bold ms-1" id="summaryProducts">0</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-muted">Tổng số lượng:</span>
+                                        <span class="fw-bold ms-1" id="summaryQuantity">0</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-muted">Tổng giá trị:</span>
+                                        <span class="fw-bold text-primary fs-5 ms-1" id="summaryValue">0 đ</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <button type="button" class="btn btn-success btn-lg" id="btnCreateImport" disabled>
+                                    <i class="bx bx-check-circle me-1"></i> Tạo phiếu nhập
+                                </button>
+                                <small class="d-block text-muted mt-1">Phiếu nhập sẽ ở trạng thái chờ duyệt</small>
+                            </div>
                         </div>
-
-                        <div class="alert alert-warning mb-3" id="warningSync" style="display: none;">
-                            <i class="bx bx-sync"></i>
-                            <span id="warningSyncText"></span>
-                        </div>
-
-                        <div class="d-grid gap-2">
-                            <button type="button" class="btn btn-success btn-lg" id="btnCreateImport" disabled>
-                                <i class="bx bx-check-circle"></i> Tạo phiếu nhập
-                            </button>
-                            <small class="text-muted text-center">
-                                Phiếu nhập sẽ ở trạng thái chờ duyệt
-                            </small>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Help Card -->
-                <div class="card mt-4">
-                    <div class="card-header">
-                        <h6 class="card-title mb-0">Hướng dẫn</h6>
-                    </div>
-                    <div class="card-body">
-                        <ol class="mb-0 ps-3">
-                            <li class="mb-2">Kiểm tra sản phẩm và số lượng</li>
-                            <li class="mb-2">Với SP <strong>theo dõi HSD</strong>: click "Chọn mã" để scan/chọn mã định danh</li>
-                            <li class="mb-2">Với SP <strong>không tracking</strong>: nhập số lượng trực tiếp</li>
-                            <li class="mb-0">Nhấn "Tạo phiếu nhập" khi hoàn tất</li>
-                        </ol>
                     </div>
                 </div>
             </div>
@@ -393,7 +405,7 @@ jQuery(document).ready(function($) {
 
     function renderProducts() {
         if (!productsData || productsData.length === 0) {
-            $('#productsTableBody').html('<tr><td colspan="8" class="text-center py-4 text-muted">Không có sản phẩm</td></tr>');
+            $('#productsTableBody').html('<tr><td colspan="14" class="text-center py-4 text-muted">Không có sản phẩm</td></tr>');
             return;
         }
 
@@ -406,6 +418,19 @@ jQuery(document).ready(function($) {
             const maxQty = parseInt(item.quantity) || 0;
             const data = importData[barcode] || {};
             const importQty = data.quantity || 0;
+
+            // Lấy thông tin giá/thuế từ item (từ local_ledger_item)
+            const price = parseFloat(item.price) || 0;
+            const taxPercent = parseFloat(item.local_ledger_item_tax_percent) || 0;
+            const discountPercent = parseFloat(item.local_ledger_item_discount) || 0;
+            const itemNote = item.local_ledger_item_note || '';
+
+            // Tính toán giống như trang xuất
+            const subtotalNoVat = importQty * price;
+            const discountAmount = subtotalNoVat * (discountPercent / 100);
+            const afterDiscount = subtotalNoVat - discountAmount;
+            const taxAmount = afterDiscount * (taxPercent / 100);
+            const subtotal = afterDiscount + taxAmount;
 
             if (!item.synced_in_destination) {
                 needsSync++;
@@ -433,7 +458,9 @@ jQuery(document).ready(function($) {
             const itemStatus = '<span class="badge bg-success">Nhập hết</span>';
 
             html += `
-                <tr data-barcode="${escapeHtml(barcode)}" data-max="${maxQty}" data-tracking="${isTracking ? 1 : 0}">
+                <tr data-barcode="${escapeHtml(barcode)}" data-max="${maxQty}" data-tracking="${isTracking ? 1 : 0}"
+                    data-price="${price}" data-tax-percent="${taxPercent}" data-discount-percent="${discountPercent}"
+                    data-subtotal-no-vat="${subtotalNoVat}" data-tax-amount="${taxAmount}" data-subtotal="${subtotal}">
                     <td>${index + 1}</td>
                     <td>
                         <strong>${escapeHtml(item.product_name)}</strong>
@@ -443,7 +470,13 @@ jQuery(document).ready(function($) {
                     <td class="text-center"><strong>${maxQty}</strong></td>
                     <td class="text-center">${lotColumn}</td>
                     <td class="text-center">${qtyColumn}</td>
-                    <td>${escapeHtml(item.unit_name || 'SP')}</td>
+                    <td class="text-end">${formatCurrency(price)}</td>
+                    <td class="text-end">${formatCurrency(subtotalNoVat)}</td>
+                    <td class="text-center">${discountPercent > 0 ? discountPercent + '%' : '—'}</td>
+                    <td class="text-center">${taxPercent}%</td>
+                    <td class="text-end text-danger">${formatCurrency(taxAmount)}</td>
+                    <td class="text-end fw-semibold">${formatCurrency(subtotal)}</td>
+                    <td><span class="text-muted small">${escapeHtml(itemNote) || '—'}</span></td>
                     <td class="item-status">${itemStatus}</td>
                 </tr>
             `;
@@ -463,6 +496,9 @@ jQuery(document).ready(function($) {
     function updateSummary() {
         let totalMax = 0;
         let totalImport = 0;
+        let totalNoVat = 0;
+        let totalTax = 0;
+        let totalAmount = 0;
 
         productsData.forEach(function(item) {
             const barcode = item.barcode_main || item.barcode;
@@ -470,15 +506,37 @@ jQuery(document).ready(function($) {
             const data = importData[barcode] || {};
             const importQty = data.quantity || 0;
 
+            const price = parseFloat(item.price) || 0;
+            const taxPercent = parseFloat(item.local_ledger_item_tax_percent) || 0;
+            const discountPercent = parseFloat(item.local_ledger_item_discount) || 0;
+
+            // Tính toán giống như trang xuất
+            const subtotalNoVat = importQty * price;
+            const discountAmount = subtotalNoVat * (discountPercent / 100);
+            const afterDiscount = subtotalNoVat - discountAmount;
+            const taxAmount = afterDiscount * (taxPercent / 100);
+            const subtotal = afterDiscount + taxAmount;
+
             totalMax += maxQty;
             totalImport += importQty;
+            totalNoVat += subtotalNoVat;
+            totalTax += taxAmount;
+            totalAmount += subtotal;
         });
 
         $('#footTotalImport').text(totalImport + ' / ' + totalMax);
+        $('#footTotalNoVat').text(formatCurrency(totalNoVat));
+        $('#footTotalTax').text(formatCurrency(totalTax));
+        $('#footTotalAmount').text(formatCurrency(totalAmount));
 
         // Trạng thái tổng - luôn là "Nhập hết"
         $('#footStatus').html('<span class="badge bg-success">Nhập hết</span>');
         $('#btnCreateImport').prop('disabled', totalImport === 0);
+
+        // Cập nhật summary ở footer sticky
+        $('#summaryProducts').text(productsData.length);
+        $('#summaryQuantity').text(totalImport);
+        $('#summaryValue').text(formatCurrency(totalAmount));
     }
 
     // LOT MODAL
@@ -777,6 +835,10 @@ jQuery(document).ready(function($) {
         if (!dateStr) return '—';
         const date = new Date(dateStr);
         return date.toLocaleDateString('vi-VN') + ' ' + date.toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'});
+    }
+
+    function formatCurrency(value) {
+        return new Intl.NumberFormat('vi-VN').format(value || 0) + ' đ';
     }
 
     // Initial load
