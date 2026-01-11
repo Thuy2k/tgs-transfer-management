@@ -1064,12 +1064,16 @@ class TGS_Return_Ajax
 
                 // Set trạng thái hiển thị - check trạng thái duyệt của phiếu xuất tự động
                 if ($auto_export_ledger) {
-                    $transfer->transfer_status = ($auto_export_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED)
-                        ? TGS_TRANSFER_STATUS_ACCEPTED : TGS_TRANSFER_STATUS_PENDING;
+                    $transfer->return_status = ($auto_export_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED)
+                        ? 1 : 0;
                 } else {
-                    $transfer->transfer_status = ($source_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED)
-                        ? TGS_TRANSFER_STATUS_ACCEPTED : TGS_TRANSFER_STATUS_PENDING;
+                    $transfer->return_status = ($source_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED)
+                        ? 1 : 0;
                 }
+
+                // Thêm alias cho JS compatibility
+                $transfer->return_id = $transfer->transfer_id;
+                $transfer->return_code = $source_ledger->local_ledger_code; // Mã phiếu trả
 
                 $pending_returns[] = $transfer;
             }
@@ -1096,7 +1100,13 @@ class TGS_Return_Ajax
         $current_blog_id = get_current_blog_id();
         $current_user_id = get_current_user_id();
 
-        $transfer_id = intval($_POST['transfer_id'] ?? 0);
+        // Support cả transfer_id và return_id (alias)
+        $transfer_id = 0;
+        if (!empty($_POST['transfer_id'])) {
+            $transfer_id = intval($_POST['transfer_id']);
+        } elseif (!empty($_POST['return_id'])) {
+            $transfer_id = intval($_POST['return_id']);
+        }
         $import_note = sanitize_textarea_field($_POST['note'] ?? $_POST['import_note'] ?? '');
         $items_json = isset($_POST['items']) ? wp_unslash($_POST['items']) : '';
 
@@ -1946,15 +1956,8 @@ class TGS_Return_Ajax
         ", $source_ledger_id, TGS_LEDGER_TYPE_SALE));
 
         if ($auto_export_ledger) {
-            if ($auto_export_ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
-                restore_current_blog();
-                wp_send_json_error(['message' => 'Phiếu này chưa được shop con duyệt.']);
-            }
-        } else {
-            if ($ledger && $ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
-                restore_current_blog();
-                wp_send_json_error(['message' => 'Phiếu này chưa được shop con duyệt.']);
-            }
+            // Set trạng thái duyệt dựa vào phiếu xuất tự động
+            $transfer->local_ledger_approver_status = $auto_export_ledger->local_ledger_approver_status;
         }
 
         $transfer->source_shop_name = get_bloginfo('name');
@@ -2019,7 +2022,7 @@ class TGS_Return_Ajax
         }
 
         wp_send_json_success([
-            'transfer' => $transfer,
+            'return' => $transfer,
             'items' => $items
         ]);
     }
@@ -2033,7 +2036,13 @@ class TGS_Return_Ajax
 
         global $wpdb;
 
-        $transfer_id = intval($_POST['transfer_id'] ?? 0);
+        // Support cả transfer_id và return_id (alias)
+        $transfer_id = 0;
+        if (!empty($_POST['transfer_id'])) {
+            $transfer_id = intval($_POST['transfer_id']);
+        } elseif (!empty($_POST['return_id'])) {
+            $transfer_id = intval($_POST['return_id']);
+        }
 
         if (!$transfer_id) {
             wp_send_json_error(['message' => 'Thiếu ID transfer']);

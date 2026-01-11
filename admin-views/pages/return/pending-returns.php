@@ -146,8 +146,7 @@ jQuery(document).ready(function($) {
                                 Từ: <strong>${escapeHtml(item.source_shop_name || 'Shop #' + item.source_blog_id)}</strong>
                             </h6>
                             <small class="text-muted">
-                                Mã return: #${item.return_id} |
-                                Phiếu trả: #${item.source_ledger_id}
+                                Phiếu trả: <strong>${escapeHtml(item.return_code || item.local_ledger_code || '#' + item.source_ledger_id)}</strong>
                             </small>
                         </div>
                         <div class="d-flex align-items-center gap-2">
@@ -167,7 +166,7 @@ jQuery(document).ready(function($) {
                             </div>
                             <div class="col-md-4 text-md-end">
                                 ${item.return_status == 1 ? `
-                                    <a href="<?php echo admin_url('admin.php?page=tgs-shop-management&view=return-import-add'); ?>&return_id=${item.return_id}"
+                                    <a href="<?php echo admin_url('admin.php?page=tgs-shop-management&view=return-import-add'); ?>&transfer_id=${item.transfer_id}"
                                        class="btn btn-success">
                                         <i class="bx bx-import"></i> Tạo phiếu nhận
                                     </a>

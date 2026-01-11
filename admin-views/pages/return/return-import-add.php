@@ -15,7 +15,8 @@ if (!defined('ABSPATH')) {
 
 $ajax_url = admin_url('admin-ajax.php');
 $nonce = wp_create_nonce('tgs_return_nonce');
-$return_id = isset($_GET['return_id']) ? intval($_GET['return_id']) : 0;
+// Support cả transfer_id và return_id
+$return_id = isset($_GET['transfer_id']) ? intval($_GET['transfer_id']) : (isset($_GET['return_id']) ? intval($_GET['return_id']) : 0);
 
 if (!$return_id) {
     echo '<div class="alert alert-danger">Không tìm thấy thông tin phiếu trả. <a href="' . esc_url(admin_url('admin.php?page=tgs-shop-management&view=return-pending-returns')) . '">Quay lại</a></div>';
