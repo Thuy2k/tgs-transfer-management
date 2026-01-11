@@ -162,7 +162,7 @@ class TGS_Transfer_Ajax
     }
 
     /**
-     * Tạo phiếu xuất đến shop con
+     * Tạo phiếu bán nội bộ (xuất đến shop mua)
      *
      * Luồng mới theo mô hình cha-con (giống phiếu bán hàng):
      * 1. Tạo phiếu xuất xuống con (PARENT) - type = TRANSFER_EXPORT, KHÔNG có items
@@ -443,7 +443,7 @@ class TGS_Transfer_Ajax
             $transfer_id = $wpdb->insert_id;
 
             if (!$transfer_id) {
-                throw new Exception('Lỗi tạo bản ghi transfer ở shop mẹ');
+                throw new Exception('Lỗi tạo bản ghi transfer ở shop bán');
             }
 
             // ========== BƯỚC 7: Tạo transfer_ledger ở shop CON ==========
@@ -468,7 +468,7 @@ class TGS_Transfer_Ajax
             restore_current_blog();
 
             if (!$dest_transfer_id) {
-                throw new Exception('Lỗi tạo bản ghi transfer ở shop con');
+                throw new Exception('Lỗi tạo bản ghi transfer ở shop mua');
             }
 
             $wpdb->query('COMMIT');
@@ -482,10 +482,10 @@ class TGS_Transfer_Ajax
                 'total_amount' => $total_amount,
                 'auto_export_ledger_id' => $auto_export_ledger_id,
                 'auto_export_code' => $auto_export_code
-            ], 'Tạo phiếu xuất đến shop: ' . $dest_shop_name);
+            ], 'Tạo phiếu bán nội bộ cho shop: ' . $dest_shop_name);
 
             wp_send_json_success([
-                'message' => 'Tạo phiếu xuất thành công',
+                'message' => 'Tạo phiếu bán nội bộ thành công',
                 'ledger_id' => $parent_ledger_id,
                 'auto_export_ledger_id' => $auto_export_ledger_id,
                 'transfer_id' => $transfer_id,
@@ -558,7 +558,7 @@ class TGS_Transfer_Ajax
         ", $parent_id, TGS_LEDGER_TYPE_TRANSFER_EXPORT));
 
         if (!$parent_ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu xuất đến shop con']);
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu bán nội bộ']);
         }
 
         // Lấy thông tin transfer từ phiếu cha
@@ -657,7 +657,7 @@ class TGS_Transfer_Ajax
             ], !empty($note) ? $note : 'Duyệt phiếu xuất kho (chuyển đến shop: ' . $dest_shop_name . ')');
 
             wp_send_json_success([
-                'message' => 'Duyệt phiếu xuất kho thành công. Shop đích có thể nhận hàng.'
+                'message' => 'Duyệt phiếu bán nội bộ thành công. Shop mua có thể nhận hàng.'
             ]);
 
         } catch (Exception $e) {
@@ -840,7 +840,7 @@ class TGS_Transfer_Ajax
     }
 
     /**
-     * Tạo phiếu nhập từ shop mẹ
+     * Tạo phiếu mua nội bộ (nhập từ shop bán)
      *
      * Luồng mới theo mô hình cha-con (giống phiếu mua hàng):
      * 1. Tạo phiếu nhập từ mẹ (PARENT) - type = TRANSFER_IMPORT, KHÔNG có items
@@ -941,13 +941,13 @@ class TGS_Transfer_Ajax
             // Check trạng thái duyệt của phiếu xuất tự động
             if ($auto_export_ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
                 restore_current_blog();
-                wp_send_json_error(['message' => 'Phiếu xuất tự động chưa được shop mẹ duyệt']);
+                wp_send_json_error(['message' => 'Phiếu xuất tự động chưa được shop bán duyệt']);
             }
         } else {
             // Fallback: nếu không có phiếu con thì check phiếu cha
             if ($source_ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
                 restore_current_blog();
-                wp_send_json_error(['message' => 'Phiếu xuất chưa được shop mẹ duyệt']);
+                wp_send_json_error(['message' => 'Phiếu xuất chưa được shop bán duyệt']);
             }
         }
 
@@ -1218,10 +1218,10 @@ class TGS_Transfer_Ajax
                 'is_partial' => $is_partial,
                 'auto_import_ledger_id' => $auto_import_ledger_id,
                 'auto_import_code' => $auto_import_code
-            ], 'Tạo phiếu nhập từ shop: ' . $source_shop_name);
+            ], 'Tạo phiếu mua nội bộ từ shop: ' . $source_shop_name);
 
             wp_send_json_success([
-                'message' => 'Tạo phiếu nhập thành công',
+                'message' => 'Tạo phiếu mua nội bộ thành công',
                 'ledger_id' => $parent_ledger_id,
                 'auto_import_ledger_id' => $auto_import_ledger_id,
                 'ledger_code' => $parent_ledger_code,
@@ -1292,7 +1292,7 @@ class TGS_Transfer_Ajax
         ", $parent_id, TGS_LEDGER_TYPE_TRANSFER_IMPORT));
 
         if (!$parent_ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu nhập từ shop mẹ']);
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu mua nội bộ']);
         }
 
         // Lấy các item từ phiếu con nhập kho
@@ -1719,13 +1719,13 @@ class TGS_Transfer_Ajax
             // Check trạng thái duyệt của phiếu xuất tự động
             if ($auto_export_ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
                 restore_current_blog();
-                wp_send_json_error(['message' => 'Phiếu chuyển này chưa được shop mẹ duyệt xuất.']);
+                wp_send_json_error(['message' => 'Phiếu này chưa được shop bán duyệt.']);
             }
         } else {
             // Fallback: nếu không có phiếu con thì check phiếu cha
             if ($ledger && $ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
                 restore_current_blog();
-                wp_send_json_error(['message' => 'Phiếu chuyển này chưa được shop mẹ duyệt xuất.']);
+                wp_send_json_error(['message' => 'Phiếu này chưa được shop bán duyệt.']);
             }
         }
 
@@ -2267,7 +2267,7 @@ class TGS_Transfer_Ajax
                 'created_at' => $ri->created_at,
                 'status' => $ri->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED ? 'approved' : 'pending',
                 'related_blog_id' => 0,
-                'related_shop_name' => 'Shop mẹ',
+                'related_shop_name' => 'Shop bán',
                 'products_count' => intval($products_count)
             ];
         }
@@ -2511,7 +2511,7 @@ class TGS_Transfer_Ajax
         ", $parent_ledger_id, TGS_LEDGER_TYPE_TRANSFER_EXPORT));
 
         if (!$parent_ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu xuất đến shop con']);
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu bán nội bộ']);
         }
 
         if ($child_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_REJECTED) {
@@ -2595,7 +2595,7 @@ class TGS_Transfer_Ajax
             ], $reason);
 
             wp_send_json_success([
-                'message' => 'Từ chối phiếu xuất thành công! Hàng đã nhập kho lại.',
+                'message' => 'Từ chối phiếu bán nội bộ thành công! Hàng đã nhập kho lại.',
                 'reason' => $reason
             ]);
 
@@ -2656,7 +2656,7 @@ class TGS_Transfer_Ajax
         ", $parent_ledger_id, TGS_LEDGER_TYPE_TRANSFER_IMPORT));
 
         if (!$parent_ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu nhập từ shop mẹ']);
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu mua nội bộ']);
         }
 
         if ($child_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_REJECTED) {
@@ -2826,7 +2826,7 @@ class TGS_Transfer_Ajax
             ], $reason);
 
             wp_send_json_success([
-                'message' => 'Từ chối phiếu nhập thành công! Hàng sẽ chờ trả về shop mẹ.',
+                'message' => 'Từ chối phiếu mua thành công! Hàng sẽ chờ trả về shop bán.',
                 'reason' => $reason
             ]);
 

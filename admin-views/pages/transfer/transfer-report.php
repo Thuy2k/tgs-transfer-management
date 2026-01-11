@@ -1,6 +1,6 @@
 <?php
 /**
- * Báo cáo & Thống kê chuyển kho liên shop
+ * Báo cáo & Thống kê mua bán nội bộ
  *
  * Trang dashboard hiển thị tổng quan luân chuyển hàng giữa các shop
  *
@@ -23,12 +23,12 @@ $current_shop_name = get_bloginfo('name');
         <div class="d-flex flex-column justify-content-center">
             <h4 class="mb-1">
                 <i class="bx bx-bar-chart-alt-2 text-primary"></i>
-                Báo cáo & Thống kê chuyển kho
+                Báo cáo & Thống kê mua bán nội bộ
             </h4>
             <p class="text-muted mb-0">
                 <a href="<?php echo admin_url('admin.php?page=tgs-shop-management'); ?>">Dashboard</a>
                 <span class="mx-1">/</span>
-                <span>Báo cáo chuyển kho liên shop</span>
+                <span>Báo cáo mua bán nội bộ</span>
             </p>
         </div>
         <div class="d-flex gap-2">
@@ -75,7 +75,7 @@ $current_shop_name = get_bloginfo('name');
 
         <!-- Summary Cards -->
         <div class="row mb-4">
-            <!-- Tổng xuất đi -->
+            <!-- Tổng bán đi -->
             <div class="col-lg-3 col-md-6 mb-4">
                 <div class="card h-100">
                     <div class="card-body">
@@ -92,7 +92,7 @@ $current_shop_name = get_bloginfo('name');
                             </div>
                         </div>
                         <h4 class="card-title mb-1" id="statExportCount">0</h4>
-                        <small class="text-muted">Phiếu xuất đi</small>
+                        <small class="text-muted">Phiếu bán nội bộ</small>
                         <div class="mt-2">
                             <span class="badge bg-label-success" id="statExportApproved">0 đã duyệt</span>
                             <span class="badge bg-label-warning" id="statExportPending">0 chờ duyệt</span>
@@ -101,7 +101,7 @@ $current_shop_name = get_bloginfo('name');
                 </div>
             </div>
 
-            <!-- Tổng nhập về -->
+            <!-- Tổng mua về -->
             <div class="col-lg-3 col-md-6 mb-4">
                 <div class="card h-100">
                     <div class="card-body">
@@ -113,7 +113,7 @@ $current_shop_name = get_bloginfo('name');
                             </div>
                         </div>
                         <h4 class="card-title mb-1" id="statImportCount">0</h4>
-                        <small class="text-muted">Phiếu nhập về</small>
+                        <small class="text-muted">Phiếu mua nội bộ</small>
                         <div class="mt-2">
                             <span class="badge bg-label-success" id="statImportApproved">0 đã duyệt</span>
                             <span class="badge bg-label-warning" id="statImportPending">0 chờ duyệt</span>
@@ -200,13 +200,13 @@ $current_shop_name = get_bloginfo('name');
 
         <!-- Transfer Relations -->
         <div class="row">
-            <!-- Shops đã xuất đến -->
+            <!-- Shops đã bán cho -->
             <div class="col-lg-6 mb-4">
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="card-title mb-0">
                             <i class="bx bx-share text-info"></i>
-                            Đã xuất đến các shop
+                            Đã bán cho các shop
                         </h5>
                         <span class="badge bg-info" id="exportedShopsCount">0 shop</span>
                     </div>
@@ -224,7 +224,7 @@ $current_shop_name = get_bloginfo('name');
                                 <tbody id="exportedShopsTable">
                                     <tr>
                                         <td colspan="4" class="text-center text-muted py-4">
-                                            Chưa xuất đến shop nào
+                                            Chưa bán cho shop nào
                                         </td>
                                     </tr>
                                 </tbody>
@@ -487,7 +487,7 @@ jQuery(document).ready(function($) {
     // Exported shops table
     function renderExportedShops(shops) {
         if (!shops || shops.length === 0) {
-            $('#exportedShopsTable').html('<tr><td colspan="4" class="text-center text-muted py-4">Chưa xuất đến shop nào</td></tr>');
+            $('#exportedShopsTable').html('<tr><td colspan="4" class="text-center text-muted py-4">Chưa bán cho shop nào</td></tr>');
             $('#exportedShopsCount').text('0 shop');
             return;
         }
