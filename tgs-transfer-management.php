@@ -98,6 +98,7 @@ class TGS_Transfer_Management
     private function load_dependencies()
     {
         require_once TGS_TRANSFER_PLUGIN_DIR . 'includes/class-tgs-transfer-ajax.php';
+        require_once TGS_TRANSFER_PLUGIN_DIR . 'includes/class-tgs-return-ajax.php';
     }
 
     /**
@@ -113,6 +114,7 @@ class TGS_Transfer_Management
 
         // Khởi tạo AJAX handlers
         TGS_Transfer_Ajax::init();
+        TGS_Return_Ajax::init();
     }
 
     /**
@@ -120,6 +122,7 @@ class TGS_Transfer_Management
      */
     public function register_routes($routes)
     {
+        // Transfer routes (Mua bán nội bộ)
         $transfer_routes = [
             'transfer-export-add' => ['Bán hàng nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/transfer-export-add.php'],
             'ticket-transfer-exports' => ['DS phiếu bán nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/list-export.php'],
@@ -131,14 +134,27 @@ class TGS_Transfer_Management
             'transfer-report' => ['Báo cáo mua bán nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/transfer/transfer-report.php'],
         ];
 
-        return array_merge($routes, $transfer_routes);
+        // Return routes (Trả hàng nội bộ)
+        $return_routes = [
+            'return-export-add' => ['Trả hàng nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/return/return-export-add.php'],
+            'ticket-return-exports' => ['DS phiếu trả nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/return/list-return-export.php'],
+            'ticket-return-export-detail' => ['Chi tiết phiếu trả nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/return/detail-return-export.php'],
+            'return-pending-returns' => ['Phiếu chờ nhận hàng trả', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/return/pending-returns.php'],
+            'return-import-add' => ['Nhận hàng trả', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/return/return-import-add.php'],
+            'ticket-return-imports' => ['DS phiếu nhận hàng trả', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/return/list-return-import.php'],
+            'ticket-return-import-detail' => ['Chi tiết phiếu nhận hàng trả', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/return/detail-return-import.php'],
+            'return-report' => ['Báo cáo trả hàng nội bộ', TGS_TRANSFER_PLUGIN_DIR . 'admin-views/pages/return/return-report.php'],
+        ];
+
+        return array_merge($routes, $transfer_routes, $return_routes);
     }
 
     /**
-     * Render sidebar menu cho Transfer
+     * Render sidebar menu cho Transfer và Return
      */
     public function render_sidebar_menu($current_view)
     {
+        // Transfer views (Mua bán nội bộ)
         $transfer_views = [
             'transfer-export-add',
             'ticket-transfer-exports',
@@ -149,10 +165,23 @@ class TGS_Transfer_Management
             'ticket-transfer-import-detail',
             'transfer-report'
         ];
-        $is_active = in_array($current_view, $transfer_views) ? 'active open' : '';
+        $is_transfer_active = in_array($current_view, $transfer_views) ? 'active open' : '';
+
+        // Return views (Trả hàng nội bộ)
+        $return_views = [
+            'return-export-add',
+            'ticket-return-exports',
+            'ticket-return-export-detail',
+            'return-pending-returns',
+            'return-import-add',
+            'ticket-return-imports',
+            'ticket-return-import-detail',
+            'return-report'
+        ];
+        $is_return_active = in_array($current_view, $return_views) ? 'active open' : '';
         ?>
-        <!-- Xuất nhập giữa các shop (Multisite) - From TGS Transfer Management Plugin -->
-        <li class="menu-item <?php echo $is_active; ?>">
+        <!-- Mua bán nội bộ - From TGS Transfer Management Plugin -->
+        <li class="menu-item <?php echo $is_transfer_active; ?>">
             <a href="javascript:void(0);" class="menu-link menu-toggle">
                 <i class="menu-icon tf-icons bx bx-store"></i>
                 <div>Mua bán nội bộ</div>
@@ -186,6 +215,46 @@ class TGS_Transfer_Management
                     <a href="<?php echo tgs_url('ticket-transfer-imports'); ?>" class="menu-link">
                         <i class="bx bx-download text-success me-1"></i>
                         <div>DS phiếu mua nội bộ</div>
+                    </a>
+                </li>
+            </ul>
+        </li>
+
+        <!-- Trả hàng nội bộ - From TGS Transfer Management Plugin -->
+        <li class="menu-item <?php echo $is_return_active; ?>">
+            <a href="javascript:void(0);" class="menu-link menu-toggle">
+                <i class="menu-icon tf-icons bx bx-undo"></i>
+                <div>Trả hàng nội bộ</div>
+            </a>
+            <ul class="menu-sub">
+                <li class="menu-item <?php echo $current_view === 'return-report' ? 'active' : ''; ?>">
+                    <a href="<?php echo tgs_url('return-report'); ?>" class="menu-link">
+                        <i class="bx bx-bar-chart-alt-2 text-primary me-1"></i>
+                        <div>Báo cáo & Thống kê</div>
+                    </a>
+                </li>
+                <li class="menu-item <?php echo $current_view === 'return-export-add' ? 'active' : ''; ?>">
+                    <a href="<?php echo tgs_url('return-export-add'); ?>" class="menu-link">
+                        <i class="bx bx-undo text-info me-1"></i>
+                        <div>Trả hàng nội bộ</div>
+                    </a>
+                </li>
+                <li class="menu-item <?php echo in_array($current_view, ['ticket-return-exports', 'ticket-return-export-detail']) ? 'active' : ''; ?>">
+                    <a href="<?php echo tgs_url('ticket-return-exports'); ?>" class="menu-link">
+                        <i class="bx bx-list-ul me-1"></i>
+                        <div>DS phiếu trả nội bộ</div>
+                    </a>
+                </li>
+                <li class="menu-item <?php echo $current_view === 'return-pending-returns' ? 'active' : ''; ?>">
+                    <a href="<?php echo tgs_url('return-pending-returns'); ?>" class="menu-link">
+                        <i class="bx bx-time text-warning me-1"></i>
+                        <div>Chờ nhận hàng trả</div>
+                    </a>
+                </li>
+                <li class="menu-item <?php echo in_array($current_view, ['ticket-return-imports', 'ticket-return-import-detail']) ? 'active' : ''; ?>">
+                    <a href="<?php echo tgs_url('ticket-return-imports'); ?>" class="menu-link">
+                        <i class="bx bx-download text-success me-1"></i>
+                        <div>DS phiếu nhận hàng trả</div>
                     </a>
                 </li>
             </ul>
