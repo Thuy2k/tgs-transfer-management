@@ -775,11 +775,26 @@ class TGS_Transfer_Ajax
                 }
                 $transfer->items_count = intval($items_count);
 
-                // Set trạng thái hiển thị - nếu phiếu xuất đã duyệt thì mới cho tạo phiếu nhập
+                // Tìm phiếu xuất tự động (phiếu con) có parent_id = phiếu cha (type 12)
+                // Phiếu xuất tự động mới là phiếu quan trọng cần check trạng thái duyệt
+                $auto_export_ledger = $wpdb->get_row($wpdb->prepare("
+                    SELECT local_ledger_id, local_ledger_approver_status
+                    FROM {$source_ledger_table}
+                    WHERE local_ledger_parent_id = %d
+                    AND local_ledger_type = %d
+                ", $transfer->source_ledger_id, TGS_LEDGER_TYPE_SALE));
+
+                // Set trạng thái hiển thị - check trạng thái duyệt của phiếu xuất tự động (phiếu con)
                 // TGS_TRANSFER_STATUS_ACCEPTED = 1 (đã duyệt xuất, cho phép tạo phiếu nhập)
                 // TGS_TRANSFER_STATUS_PENDING = 0 (chờ duyệt)
-                $transfer->transfer_status = ($source_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED)
-                    ? TGS_TRANSFER_STATUS_ACCEPTED : TGS_TRANSFER_STATUS_PENDING;
+                if ($auto_export_ledger) {
+                    $transfer->transfer_status = ($auto_export_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED)
+                        ? TGS_TRANSFER_STATUS_ACCEPTED : TGS_TRANSFER_STATUS_PENDING;
+                } else {
+                    // Fallback: nếu không tìm thấy phiếu con thì check phiếu cha
+                    $transfer->transfer_status = ($source_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED)
+                        ? TGS_TRANSFER_STATUS_ACCEPTED : TGS_TRANSFER_STATUS_PENDING;
+                }
 
                 $pending_imports[] = $transfer;
             }
