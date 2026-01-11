@@ -193,8 +193,6 @@ jQuery(document).ready(function($) {
                         </div>
 
                         <button class="btn btn-sm btn-outline-secondary mt-2 btn-toggle-products"
-                                data-bs-toggle="collapse"
-                                data-bs-target="#products-${item.transfer_id}"
                                 data-transfer-id="${item.transfer_id}"
                                 data-loaded="false">
                             <i class="bx bx-chevron-down"></i> Xem sản phẩm
@@ -252,7 +250,7 @@ jQuery(document).ready(function($) {
                     </div>
                     <div class="d-flex align-items-center gap-3">
                         ${trackingBadge}
-                        <span class="badge bg-primary">${item.quantity} ${escapeHtml(item.unit_name || 'SP')}</span>
+                        <span class="badge bg-primary">${formatQuantity(item.quantity)} ${escapeHtml(item.unit_name || 'SP')}</span>
                     </div>
                 </div>
             `;
@@ -261,25 +259,25 @@ jQuery(document).ready(function($) {
         $(`#products-list-${transferId}`).html(html || '<div class="text-muted">Không có sản phẩm</div>');
     }
 
-    // Toggle products
+    // Toggle products - load on first expand and toggle manually
     $(document).on('click', '.btn-toggle-products', function() {
         const btn = $(this);
         const transferId = btn.data('transfer-id');
         const loaded = btn.data('loaded');
+        const target = $(`#products-${transferId}`);
 
         if (!loaded || loaded === 'false') {
             loadTransferProducts(transferId);
             btn.data('loaded', 'true');
         }
 
-        // Toggle icon
-        const icon = btn.find('i');
-        if (icon.hasClass('bx-chevron-down')) {
-            icon.removeClass('bx-chevron-down').addClass('bx-chevron-up');
-            btn.html('<i class="bx bx-chevron-up"></i> Ẩn sản phẩm');
-        } else {
-            icon.removeClass('bx-chevron-up').addClass('bx-chevron-down');
+        // Toggle collapse manually
+        if (target.hasClass('show')) {
+            target.removeClass('show');
             btn.html('<i class="bx bx-chevron-down"></i> Xem sản phẩm');
+        } else {
+            target.addClass('show');
+            btn.html('<i class="bx bx-chevron-up"></i> Ẩn sản phẩm');
         }
     });
 
@@ -307,6 +305,12 @@ jQuery(document).ready(function($) {
         if (!dateStr) return '—';
         const date = new Date(dateStr);
         return date.toLocaleDateString('vi-VN') + ' ' + date.toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'});
+    }
+
+    function formatQuantity(value) {
+        if (!value) return '0';
+        const num = parseFloat(value);
+        return Number.isInteger(num) ? num.toString() : num.toFixed(2).replace(/\.?0+$/, '');
     }
 
     // Initial load
