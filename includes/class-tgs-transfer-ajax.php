@@ -633,7 +633,12 @@ class TGS_Transfer_Ajax
     }
 
     /**
-     * Đồng bộ sản phẩm sang shop đích nếu chưa có
+     * Đồng bộ sản phẩm từ shop nguồn sang shop đích
+     * Wrapper function - gọi sync_product_from_source sau khi switch_to_blog
+     *
+     * @param object $item Thông tin item (chứa local_product_name_id, local_product_barcode_main)
+     * @param int $destination_blog_id Blog ID của shop đích
+     * @param int $source_blog_id Blog ID của shop nguồn
      */
     private static function sync_product_to_destination($item, $destination_blog_id, $source_blog_id)
     {
@@ -645,7 +650,7 @@ class TGS_Transfer_Ajax
             return; // Không thể đồng bộ nếu không có barcode
         }
 
-        // Chuyển sang shop đích
+        // Chuyển sang shop đích để kiểm tra sản phẩm đã tồn tại chưa
         switch_to_blog($destination_blog_id);
 
         $dest_products_table = $wpdb->prefix . 'local_product_name';
@@ -663,9 +668,9 @@ class TGS_Transfer_Ajax
             return; // Đã có rồi
         }
 
-        // Cần đồng bộ - quay lại shop nguồn lấy thông tin đầy đủ
         restore_current_blog();
 
+        // Lấy thông tin đầy đủ sản phẩm từ shop nguồn (đang ở shop nguồn)
         $source_products_table = $wpdb->prefix . 'local_product_name';
         $full_product = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$source_products_table}
@@ -676,30 +681,11 @@ class TGS_Transfer_Ajax
             return;
         }
 
-        // Chuyển sang shop đích để tạo sản phẩm
+        // Chuyển sang shop đích và gọi hàm đồng bộ chung
         switch_to_blog($destination_blog_id);
 
-        // Tạo sản phẩm mới ở shop đích
-        $wpdb->insert($dest_products_table, [
-            'source_blog_id' => $source_blog_id,
-            'local_product_name' => $full_product->local_product_name,
-            'global_product_name' => $full_product->global_product_name,
-            'local_product_thumbnail' => $full_product->local_product_thumbnail,
-            'local_product_cat_id' => null, // Cần map danh mục nếu có
-            'local_product_description' => $full_product->local_product_description,
-            'local_product_content' => $full_product->local_product_content,
-            'local_product_price' => $full_product->local_product_price,
-            'local_product_tax' => $full_product->local_product_tax,
-            'local_product_meta' => $full_product->local_product_meta,
-            'local_product_barcode_main' => $full_product->local_product_barcode_main,
-            'local_product_barcode_url_main' => $full_product->local_product_barcode_url_main,
-            'local_product_is_tracking' => $full_product->local_product_is_tracking,
-            'local_product_quantity_no_tracking' => 0, // Bắt đầu với 0
-            'local_product_status' => 'publish',
-            'user_id' => get_current_user_id(),
-            'created_at' => current_time('mysql'),
-            'updated_at' => current_time('mysql')
-        ]);
+        // Gọi hàm đồng bộ chung (hàm này đã xử lý đầy đủ: check exists, sync category, insert product)
+        self::sync_product_from_source($full_product, $source_blog_id);
 
         restore_current_blog();
     }
@@ -2192,8 +2178,11 @@ class TGS_Transfer_Ajax
         }
 
         $wpdb->insert($products_table, [
+            'source_blog_id' => $source_blog_id,
             'local_product_barcode_main' => $source_product->local_product_barcode_main,
+            'local_product_barcode_url_main' => $source_product->local_product_barcode_url_main ?? '',
             'local_product_name' => $source_product->local_product_name,
+            'global_product_name' => $source_product->global_product_name ?? '',
             'local_product_price' => $source_product->local_product_price ?? 0,
             'local_product_cat_id' => $local_cat_id,
             'local_product_is_tracking' => $source_product->local_product_is_tracking ?? 0,
