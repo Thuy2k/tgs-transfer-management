@@ -39,6 +39,7 @@ class TGS_Transfer_Ajax
         // Transfer detail
         add_action('wp_ajax_tgs_transfer_get_transfer_detail', [__CLASS__, 'get_transfer_detail']);
         add_action('wp_ajax_tgs_transfer_get_items', [__CLASS__, 'get_transfer_items']);
+        add_action('wp_ajax_tgs_transfer_update_lot_conditions', [__CLASS__, 'update_lot_conditions']);
 
         // Report
         add_action('wp_ajax_tgs_transfer_get_report_data', [__CLASS__, 'get_report_data']);
@@ -1759,6 +1760,69 @@ class TGS_Transfer_Ajax
         restore_current_blog();
 
         wp_send_json_success($items);
+    }
+
+    /**
+     * Cập nhật tình trạng (condition) cho các lot
+     * Được gọi từ modal "Kiểm thực tế và lưu kho"
+     */
+    public static function update_lot_conditions()
+    {
+        check_ajax_referer('tgs_transfer_nonce', 'nonce');
+
+        global $wpdb;
+
+        $lots_json = isset($_POST['lots']) ? wp_unslash($_POST['lots']) : '';
+        $lots = json_decode($lots_json, true);
+
+        if (empty($lots) || !is_array($lots)) {
+            wp_send_json_error(['message' => 'Không có dữ liệu lot để cập nhật']);
+        }
+
+        $lots_table = TGS_TABLE_GLOBAL_PRODUCT_LOTS;
+        $updated_count = 0;
+        $errors = [];
+
+        foreach ($lots as $lot_data) {
+            $lot_id = intval($lot_data['lot_id'] ?? 0);
+            $condition = intval($lot_data['condition'] ?? 0);
+
+            if ($lot_id <= 0) {
+                continue;
+            }
+
+            // Validate condition (0 = Mới, 1 = Hàng lỗi trả mẹ)
+            if (!in_array($condition, [0, 1])) {
+                $condition = 0;
+            }
+
+            $result = $wpdb->update(
+                $lots_table,
+                [
+                    'global_product_lot_condition' => $condition,
+                    'updated_at' => current_time('mysql')
+                ],
+                ['global_product_lot_id' => $lot_id]
+            );
+
+            if ($result !== false) {
+                $updated_count++;
+            } else {
+                $errors[] = "Lỗi cập nhật lot ID: {$lot_id}";
+            }
+        }
+
+        if (!empty($errors)) {
+            wp_send_json_error([
+                'message' => 'Có lỗi khi cập nhật: ' . implode(', ', $errors),
+                'updated_count' => $updated_count
+            ]);
+        }
+
+        wp_send_json_success([
+            'message' => "Đã cập nhật {$updated_count} mã định danh",
+            'updated_count' => $updated_count
+        ]);
     }
 
     /**

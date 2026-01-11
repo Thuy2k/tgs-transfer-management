@@ -201,95 +201,77 @@ if (!$transfer_id) {
     </div>
 </div>
 
-<!-- Modal chọn mã định danh -->
-<div class="modal fade" id="lotSelectModal" tabindex="-1" aria-labelledby="lotSelectModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+<!-- Modal kiểm thực tế và lưu kho -->
+<div class="modal fade" id="lotSelectModal" tabindex="-1" aria-labelledby="lotSelectModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title" id="lotSelectModalLabel">
-                    <i class="bx bx-barcode"></i> Chọn mã định danh
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header">
+                <h5 class="modal-title" id="lotSelectModalLabel">Kiểm thực tế và lưu kho</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <!-- Product info -->
-                <div class="alert alert-secondary mb-3">
+                <div class="mb-3">
                     <strong id="modalProductName">—</strong>
-                    <br>
-                    <small class="text-muted">Barcode: <code id="modalProductBarcode">—</code></small>
+                    <small class="text-muted ms-2">Barcode: <code id="modalProductBarcode">—</code></small>
                 </div>
 
                 <!-- Scan input -->
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">
-                        <i class="bx bx-scan"></i> Scan mã định danh
-                    </label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="scanLotInput"
-                               placeholder="Scan hoặc nhập mã định danh..." autofocus>
-                        <button class="btn btn-outline-secondary" type="button" id="btnClearScan">
-                            <i class="bx bx-x"></i>
-                        </button>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="scanLotInput"
+                                   placeholder="Scan mã định danh..." autofocus>
+                            <button class="btn btn-outline-secondary" type="button" id="btnClearScan">
+                                <i class="bx bx-x"></i>
+                            </button>
+                        </div>
+                        <div id="scanResult" class="mt-1 small"></div>
                     </div>
-                    <div id="scanResult" class="mt-2"></div>
+                    <div class="col-md-6 text-end">
+                        <span class="text-muted">Tổng: <strong id="summaryTotal">0</strong></span>
+                        <span class="text-success ms-3">Mới: <strong id="summaryNew">0</strong></span>
+                        <span class="text-danger ms-3">Lỗi: <strong id="summaryDefect">0</strong></span>
+                    </div>
                 </div>
 
-                <!-- Quick actions -->
-                <div class="mb-3 d-flex gap-2">
-                    <button type="button" class="btn btn-sm btn-outline-success" id="btnSelectAll">
-                        <i class="bx bx-check-double"></i> Chọn tất cả
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-danger" id="btnDeselectAll">
-                        <i class="bx bx-x"></i> Bỏ chọn tất cả
-                    </button>
-                    <span class="ms-auto badge bg-primary align-self-center" id="modalSelectedCount">0 / 0 đã chọn</span>
-                </div>
-
-                <!-- Lot list -->
-                <div class="border rounded" style="max-height: 300px; overflow-y: auto;">
-                    <div id="lotListContainer" class="p-2">
-                        <!-- Rendered by JS -->
-                    </div>
+                <!-- Lot list table -->
+                <div class="border rounded">
+                    <table class="table table-hover table-sm mb-0" id="lotListTable" style="width: 100%;">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 50px;" class="text-center">#</th>
+                                <th>Mã định danh</th>
+                                <th style="width: 100px;">HSD</th>
+                                <th style="width: 200px;">Tình trạng</th>
+                                <th class="text-center" style="width: 80px;">Đã kiểm</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lotListContainer"></tbody>
+                    </table>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" class="btn btn-primary" id="btnConfirmLots">
-                    <i class="bx bx-check"></i> Xác nhận
-                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-success" id="btnSaveLotConditions">Lưu</button>
             </div>
         </div>
     </div>
 </div>
 
 <style>
-.lot-item {
-    padding: 8px 12px;
-    border-bottom: 1px solid #eee;
-    transition: background-color 0.2s;
-}
-.lot-item:last-child {
-    border-bottom: none;
-}
-.lot-item:hover {
-    background-color: #f8f9fa;
-}
-.lot-item.selected {
-    background-color: #d1e7dd;
-}
-.lot-item .form-check-input:checked {
-    background-color: #198754;
-    border-color: #198754;
-}
-.scan-success {
-    color: #198754;
-    font-weight: 500;
-}
-.scan-error {
-    color: #dc3545;
-    font-weight: 500;
-}
+.lot-row.scanned { background-color: #d1e7dd !important; }
+.lot-row.defect { background-color: #f8d7da !important; }
+.scan-success { color: #198754; }
+.scan-error { color: #dc3545; }
+.scan-warning { color: #fd7e14; }
+#lotListTable_wrapper .dataTables_filter { display: none; }
 </style>
+
+<!-- DataTables CSS và JS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 
 <script>
 jQuery(document).ready(function($) {
@@ -307,11 +289,12 @@ jQuery(document).ready(function($) {
     // Modal state
     let currentModalBarcode = null;
     let currentModalLots = [];
-    let currentModalSelectedLots = [];
+    // lotConditions: { lot_id: { condition: 0|1, scanned: true|false } }
+    let lotConditions = {};
+    // DataTable instance
+    let lotDataTable = null;
 
-    // =========================================================================
     // LOAD DATA
-    // =========================================================================
     function loadTransferInfo() {
         $.ajax({
             url: ajaxUrl,
@@ -340,25 +323,31 @@ jQuery(document).ready(function($) {
                         return;
                     }
 
-                    // Initialize import data - mặc định lấy full
+                    // Initialize import data - LUÔN lấy full (không có nhập 1 phần)
                     productsData.forEach(function(item) {
                         const barcode = item.barcode_main || item.barcode;
                         const isTracking = item.is_tracking == 1;
                         const maxQty = parseInt(item.quantity) || 0;
 
                         if (isTracking) {
-                            // Sử dụng lots_detail từ response (có barcode và exp_date)
                             let lotsDetail = item.lots_detail || [];
-                            // Mặc định chọn tất cả lots
+                            // Luôn chọn tất cả lots
                             importData[barcode] = {
                                 isTracking: true,
                                 maxQuantity: maxQty,
-                                allLots: lotsDetail, // Array of {id, barcode, exp_date, ...}
-                                selectedLots: lotsDetail.map(l => l.id), // Chọn tất cả IDs
+                                allLots: lotsDetail,
+                                selectedLots: lotsDetail.map(l => l.id),
                                 quantity: lotsDetail.length
                             };
+                            // Khởi tạo lotConditions với condition mặc định = 0 (Mới)
+                            lotsDetail.forEach(lot => {
+                                lotConditions[lot.id] = {
+                                    condition: lot.condition || 0,
+                                    scanned: false
+                                };
+                            });
                         } else {
-                            // Không tracking - mặc định full quantity
+                            // Không tracking - luôn full quantity
                             importData[barcode] = {
                                 isTracking: false,
                                 maxQuantity: maxQty,
@@ -384,9 +373,7 @@ jQuery(document).ready(function($) {
         });
     }
 
-    // =========================================================================
-    // RENDER FUNCTIONS
-    // =========================================================================
+    // RENDER
     function showError(message) {
         $('#errorMessage').text(message);
         $('#errorState').removeClass('d-none');
@@ -427,39 +414,23 @@ jQuery(document).ready(function($) {
             // Cột mã định danh
             let lotColumn;
             if (isTracking) {
-                const selectedCount = (data.selectedLots || []).length;
                 const totalCount = (data.allLots || []).length;
                 lotColumn = `
-                    <button type="button" class="btn btn-sm btn-outline-info btn-select-lots"
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-select-lots"
                             data-barcode="${escapeHtml(barcode)}"
                             data-product-name="${escapeHtml(item.product_name)}">
-                        <i class="bx bx-barcode"></i> ${selectedCount}/${totalCount}
+                        <i class="bx bx-check-shield"></i> Kiểm ${totalCount} mã
                     </button>
                 `;
             } else {
                 lotColumn = '<span class="text-muted">—</span>';
             }
 
-            // Cột số lượng nhập
-            let qtyColumn;
-            if (isTracking) {
-                // Tracking: readonly, tính từ số lots đã chọn
-                qtyColumn = `<span class="fw-semibold import-qty-display" data-barcode="${escapeHtml(barcode)}">${importQty}</span>`;
-            } else {
-                // Không tracking: input number
-                qtyColumn = `
-                    <input type="number"
-                           class="form-control form-control-sm import-qty-input"
-                           value="${importQty}"
-                           min="0"
-                           max="${maxQty}"
-                           data-barcode="${escapeHtml(barcode)}"
-                           style="width: 80px;">
-                `;
-            }
+            // Cột số lượng nhập - LUÔN hiển thị readonly vì nhập hết
+            let qtyColumn = `<span class="fw-semibold">${importQty}</span>`;
 
-            // Trạng thái từng dòng
-            const itemStatus = getItemStatus(importQty, maxQty);
+            // Trạng thái - luôn là "Nhập hết" vì không có nhập 1 phần
+            const itemStatus = '<span class="badge bg-success">Nhập hết</span>';
 
             html += `
                 <tr data-barcode="${escapeHtml(barcode)}" data-max="${maxQty}" data-tracking="${isTracking ? 1 : 0}">
@@ -489,16 +460,6 @@ jQuery(document).ready(function($) {
         }
     }
 
-    function getItemStatus(importQty, maxQty) {
-        if (importQty === 0) {
-            return '<span class="badge bg-danger">Không nhập</span>';
-        } else if (importQty < maxQty) {
-            return '<span class="badge bg-warning">Nhập 1 phần</span>';
-        } else {
-            return '<span class="badge bg-success">Nhập hết</span>';
-        }
-    }
-
     function updateSummary() {
         let totalMax = 0;
         let totalImport = 0;
@@ -515,74 +476,12 @@ jQuery(document).ready(function($) {
 
         $('#footTotalImport').text(totalImport + ' / ' + totalMax);
 
-        // Trạng thái tổng
-        let statusBadge;
-        if (totalImport === 0) {
-            statusBadge = '<span class="badge bg-danger">Không nhập gì</span>';
-            $('#btnCreateImport').prop('disabled', true);
-        } else if (totalImport < totalMax) {
-            statusBadge = '<span class="badge bg-warning">Nhập 1 phần</span>';
-            $('#btnCreateImport').prop('disabled', false);
-        } else {
-            statusBadge = '<span class="badge bg-success">Nhập hết</span>';
-            $('#btnCreateImport').prop('disabled', false);
-        }
-        $('#footStatus').html(statusBadge);
+        // Trạng thái tổng - luôn là "Nhập hết"
+        $('#footStatus').html('<span class="badge bg-success">Nhập hết</span>');
+        $('#btnCreateImport').prop('disabled', totalImport === 0);
     }
 
-    function updateRowDisplay(barcode) {
-        const $row = $(`tr[data-barcode="${barcode}"]`);
-        const data = importData[barcode] || {};
-        const maxQty = parseInt($row.data('max')) || 0;
-        const importQty = data.quantity || 0;
-        const isTracking = data.isTracking;
-
-        // Update quantity display
-        if (isTracking) {
-            $row.find('.import-qty-display').text(importQty);
-            // Update button text
-            const selectedCount = (data.selectedLots || []).length;
-            const totalCount = (data.allLots || []).length;
-            $row.find('.btn-select-lots').html(`<i class="bx bx-barcode"></i> ${selectedCount}/${totalCount}`);
-        }
-
-        // Update status
-        $row.find('.item-status').html(getItemStatus(importQty, maxQty));
-
-        // Update summary
-        updateSummary();
-    }
-
-    // =========================================================================
-    // QUANTITY INPUT (Non-tracking products)
-    // =========================================================================
-    $(document).on('input', '.import-qty-input', function() {
-        const $input = $(this);
-        const barcode = $input.data('barcode');
-        const $row = $input.closest('tr');
-        const maxQty = parseInt($row.data('max')) || 0;
-        let value = parseInt($input.val()) || 0;
-
-        // Validate range
-        if (value < 0) value = 0;
-        if (value > maxQty) value = maxQty;
-        $input.val(value);
-
-        // Update stored data
-        if (importData[barcode]) {
-            importData[barcode].quantity = value;
-        }
-
-        // Update row status
-        $row.find('.item-status').html(getItemStatus(value, maxQty));
-
-        // Update summary
-        updateSummary();
-    });
-
-    // =========================================================================
-    // LOT SELECT MODAL (Tracking products)
-    // =========================================================================
+    // LOT MODAL
     $(document).on('click', '.btn-select-lots', function() {
         const barcode = $(this).data('barcode');
         const productName = $(this).data('product-name');
@@ -593,7 +492,6 @@ jQuery(document).ready(function($) {
         // Set modal state
         currentModalBarcode = barcode;
         currentModalLots = data.allLots || [];
-        currentModalSelectedLots = [...(data.selectedLots || [])]; // Clone
 
         // Update modal UI
         $('#modalProductName').text(productName);
@@ -602,7 +500,7 @@ jQuery(document).ready(function($) {
         $('#scanResult').html('');
 
         renderLotList();
-        updateModalSelectedCount();
+        updateModalSummary();
 
         // Show modal
         const modal = new bootstrap.Modal(document.getElementById('lotSelectModal'));
@@ -613,34 +511,56 @@ jQuery(document).ready(function($) {
     });
 
     function renderLotList() {
-        let html = '';
-
-        if (currentModalLots.length === 0) {
-            html = '<div class="text-center text-muted py-3">Không có mã định danh</div>';
-        } else {
-            currentModalLots.forEach(function(lot, index) {
-                const lotId = lot.id;
-                const lotBarcode = lot.barcode || lotId;
-                const expDate = lot.exp_date ? formatExpDate(lot.exp_date) : '';
-                const isSelected = currentModalSelectedLots.includes(lotId);
-                html += `
-                    <div class="lot-item ${isSelected ? 'selected' : ''}" data-lot-id="${lotId}" data-lot-barcode="${escapeHtml(lotBarcode)}">
-                        <div class="form-check d-flex align-items-center justify-content-between">
-                            <div>
-                                <input class="form-check-input lot-checkbox" type="checkbox"
-                                       id="lot_${lotId}" value="${lotId}" ${isSelected ? 'checked' : ''}>
-                                <label class="form-check-label" for="lot_${lotId}">
-                                    <code class="text-primary">${escapeHtml(lotBarcode)}</code>
-                                </label>
-                            </div>
-                            ${expDate ? `<small class="text-muted">HSD: ${expDate}</small>` : ''}
-                        </div>
-                    </div>
-                `;
-            });
+        if (lotDataTable) {
+            lotDataTable.destroy();
+            lotDataTable = null;
         }
 
-        $('#lotListContainer').html(html);
+        const tableData = currentModalLots.map((lot, index) => {
+            const lotId = lot.id;
+            const lotBarcode = lot.barcode || lotId;
+            const condData = lotConditions[lotId] || { condition: 0, scanned: false };
+
+            return {
+                index: index + 1,
+                lotId: lotId,
+                lotBarcode: lotBarcode,
+                barcodeHtml: `<code>${escapeHtml(lotBarcode)}</code>`,
+                expDate: lot.exp_date ? formatExpDate(lot.exp_date) : '—',
+                conditionHtml: `<select class="form-select form-select-sm" data-lot-id="${lotId}">
+                    <option value="0" ${condData.condition === 0 ? 'selected' : ''}>Mới</option>
+                    <option value="1" ${condData.condition === 1 ? 'selected' : ''}>Lỗi</option>
+                </select>`,
+                scannedHtml: condData.scanned ? '<span class="text-success">OK</span>' : '—',
+                condition: condData.condition,
+                isScanned: condData.scanned
+            };
+        });
+
+        lotDataTable = $('#lotListTable').DataTable({
+            data: tableData,
+            columns: [
+                { data: 'index', className: 'text-center' },
+                { data: 'barcodeHtml' },
+                { data: 'expDate' },
+                { data: 'conditionHtml' },
+                { data: 'scannedHtml', className: 'text-center' }
+            ],
+            pageLength: 25,
+            lengthMenu: [[25, 50, -1], [25, 50, 'Tất cả']],
+            language: {
+                lengthMenu: 'Hiện _MENU_',
+                info: '_START_-_END_ / _TOTAL_',
+                infoEmpty: 'Trống',
+                zeroRecords: 'Không tìm thấy',
+                paginate: { next: '>', previous: '<' }
+            },
+            createdRow: function(row, data) {
+                $(row).attr('data-lot-id', data.lotId).attr('data-lot-barcode', data.lotBarcode);
+                if (data.condition === 1) $(row).addClass('lot-row defect');
+                else if (data.isScanned) $(row).addClass('lot-row scanned');
+            }
+        });
     }
 
     function formatExpDate(dateStr) {
@@ -650,48 +570,51 @@ jQuery(document).ready(function($) {
         return date.toLocaleDateString('vi-VN');
     }
 
-    function updateModalSelectedCount() {
-        const selected = currentModalSelectedLots.length;
+    function updateModalSummary() {
         const total = currentModalLots.length;
-        $('#modalSelectedCount').text(`${selected} / ${total} đã chọn`);
+        let newCount = 0;
+        let defectCount = 0;
+
+        currentModalLots.forEach(lot => {
+            const condData = lotConditions[lot.id] || { condition: 0 };
+            if (condData.condition === 1) {
+                defectCount++;
+            } else {
+                newCount++;
+            }
+        });
+
+        $('#summaryTotal').text(total);
+        $('#summaryNew').text(newCount);
+        $('#summaryDefect').text(defectCount);
     }
 
-    // Checkbox change
-    $(document).on('change', '.lot-checkbox', function() {
-        const lotId = parseInt($(this).val()); // Convert to number for consistency
-        const isChecked = $(this).is(':checked');
-        const $item = $(this).closest('.lot-item');
+    // Condition select change
+    $('#lotListTable').on('change', 'select[data-lot-id]', function() {
+        const lotId = parseInt($(this).data('lot-id'));
+        const condition = parseInt($(this).val());
+        const $row = $(this).closest('tr');
 
-        if (isChecked) {
-            if (!currentModalSelectedLots.includes(lotId)) {
-                currentModalSelectedLots.push(lotId);
-            }
-            $item.addClass('selected');
-        } else {
-            currentModalSelectedLots = currentModalSelectedLots.filter(id => id !== lotId);
-            $item.removeClass('selected');
+        // Update lotConditions
+        if (!lotConditions[lotId]) {
+            lotConditions[lotId] = { condition: 0, scanned: false };
+        }
+        lotConditions[lotId].condition = condition;
+
+        // Update row class
+        $row.removeClass('scanned defect');
+        if (condition === 1) {
+            $row.addClass('defect');
+        } else if (lotConditions[lotId].scanned) {
+            $row.addClass('scanned');
         }
 
-        updateModalSelectedCount();
+        updateModalSummary();
     });
 
-    // Select all
-    $('#btnSelectAll').on('click', function() {
-        currentModalSelectedLots = currentModalLots.map(lot => lot.id);
-        renderLotList();
-        updateModalSelectedCount();
-    });
-
-    // Deselect all
-    $('#btnDeselectAll').on('click', function() {
-        currentModalSelectedLots = [];
-        renderLotList();
-        updateModalSelectedCount();
-    });
-
-    // Scan input
+    // Scan
     $('#scanLotInput').on('keypress', function(e) {
-        if (e.which === 13) { // Enter
+        if (e.which === 13) {
             e.preventDefault();
             processScan();
         }
@@ -700,59 +623,78 @@ jQuery(document).ready(function($) {
     $('#btnClearScan').on('click', function() {
         $('#scanLotInput').val('').focus();
         $('#scanResult').html('');
+        if (lotDataTable) lotDataTable.search('').draw();
     });
 
     function processScan() {
         const scannedValue = $('#scanLotInput').val().trim();
         if (!scannedValue) return;
 
-        // Tìm lot matching theo barcode (mã định danh thực)
+        if (lotDataTable) lotDataTable.search(scannedValue).draw();
+
         const matchedLot = currentModalLots.find(lot => lot.barcode === scannedValue);
 
         if (matchedLot) {
             const lotId = matchedLot.id;
-            // Nếu đã chọn rồi thì báo
-            if (currentModalSelectedLots.includes(lotId)) {
-                $('#scanResult').html('<span class="scan-success"><i class="bx bx-check-circle"></i> Mã này đã được chọn</span>');
+            if (!lotConditions[lotId]) lotConditions[lotId] = { condition: 0, scanned: false };
+
+            if (lotConditions[lotId].scanned) {
+                $('#scanResult').html('<span class="scan-warning">Đã kiểm: ' + escapeHtml(matchedLot.barcode) + '</span>');
             } else {
-                // Chọn mã này
-                currentModalSelectedLots.push(lotId);
-                renderLotList();
-                updateModalSelectedCount();
-                $('#scanResult').html('<span class="scan-success"><i class="bx bx-check-circle"></i> Đã thêm mã: ' + escapeHtml(matchedLot.barcode) + '</span>');
+                lotConditions[lotId].scanned = true;
+                const $row = $(`tr[data-lot-id="${lotId}"]`);
+                if ($row.length) {
+                    $row.addClass('lot-row scanned');
+                    $row.find('td:last').html('<span class="text-success">OK</span>');
+                }
+                updateModalSummary();
+                $('#scanResult').html('<span class="scan-success">OK: ' + escapeHtml(matchedLot.barcode) + '</span>');
             }
         } else {
-            // Không tìm thấy
-            $('#scanResult').html('<span class="scan-error"><i class="bx bx-x-circle"></i> Mã không khớp: ' + escapeHtml(scannedValue) + '</span>');
+            $('#scanResult').html('<span class="scan-error">Không khớp: ' + escapeHtml(scannedValue) + '</span>');
         }
 
-        // Clear input và focus lại
         $('#scanLotInput').val('').focus();
     }
 
-    // Confirm lots
-    $('#btnConfirmLots').on('click', function() {
-        if (!currentModalBarcode) return;
+    // Save lot conditions
+    $('#btnSaveLotConditions').on('click', function() {
+        const btn = $(this);
+        const lotsToUpdate = currentModalLots.map(lot => ({
+            lot_id: lot.id,
+            condition: (lotConditions[lot.id] || {}).condition || 0
+        }));
 
-        // Update import data
-        importData[currentModalBarcode].selectedLots = [...currentModalSelectedLots];
-        importData[currentModalBarcode].quantity = currentModalSelectedLots.length;
+        if (lotsToUpdate.length === 0) return;
 
-        // Update row display
-        updateRowDisplay(currentModalBarcode);
+        btn.prop('disabled', true).text('Đang lưu...');
 
-        // Close modal
-        bootstrap.Modal.getInstance(document.getElementById('lotSelectModal')).hide();
-
-        // Reset modal state
-        currentModalBarcode = null;
-        currentModalLots = [];
-        currentModalSelectedLots = [];
+        $.ajax({
+            url: ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'tgs_transfer_update_lot_conditions',
+                nonce: nonce,
+                lots: JSON.stringify(lotsToUpdate)
+            },
+            success: function(response) {
+                btn.prop('disabled', false).text('Lưu');
+                if (response.success) {
+                    $('#scanResult').html('<span class="scan-success">Đã lưu!</span>');
+                    $(`.btn-select-lots[data-barcode="${currentModalBarcode}"]`)
+                        .removeClass('btn-outline-primary').addClass('btn-success').text('Đã kiểm');
+                } else {
+                    $('#scanResult').html('<span class="scan-error">Lỗi: ' + (response.data?.message || 'Không thể lưu') + '</span>');
+                }
+            },
+            error: function() {
+                btn.prop('disabled', false).text('Lưu');
+                $('#scanResult').html('<span class="scan-error">Lỗi kết nối</span>');
+            }
+        });
     });
 
-    // =========================================================================
     // CREATE IMPORT
-    // =========================================================================
     function buildItemsData() {
         const items = [];
         productsData.forEach(function(item) {
@@ -815,9 +757,7 @@ jQuery(document).ready(function($) {
         });
     });
 
-    // =========================================================================
     // HELPERS
-    // =========================================================================
     function showAlert(type, message) {
         $('#alertMessage')
             .removeClass('d-none alert-success alert-danger alert-warning alert-info')
