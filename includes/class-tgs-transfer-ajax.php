@@ -876,6 +876,7 @@ class TGS_Transfer_Ajax
         // Build lookup maps: barcode => import_quantity và barcode => selected_lots
         $import_quantities = [];
         $selected_lots_map = [];
+        $item_notes_map = [];
         foreach ($custom_items as $ci) {
             if (isset($ci['barcode']) && isset($ci['import_quantity'])) {
                 $import_quantities[$ci['barcode']] = intval($ci['import_quantity']);
@@ -883,6 +884,10 @@ class TGS_Transfer_Ajax
             // Lưu selected_lots cho tracking products
             if (isset($ci['barcode']) && isset($ci['selected_lots']) && is_array($ci['selected_lots'])) {
                 $selected_lots_map[$ci['barcode']] = $ci['selected_lots'];
+            }
+            // Lưu item_note cho mỗi sản phẩm
+            if (isset($ci['barcode']) && isset($ci['item_note'])) {
+                $item_notes_map[$ci['barcode']] = sanitize_textarea_field($ci['item_note']);
             }
         }
 
@@ -1079,6 +1084,9 @@ class TGS_Transfer_Ajax
 
                 $total_amount += $subtotal;
 
+                // Lấy item_note từ frontend hoặc từ source_item
+                $item_note = $item_notes_map[$barcode] ?? ($source_item->local_ledger_item_note ?? '');
+
                 $import_items_data[] = [
                     'product_id' => $local_product->local_product_name_id,
                     'quantity' => $import_quantity,
@@ -1093,7 +1101,8 @@ class TGS_Transfer_Ajax
                     'is_tracking' => $is_tracking,
                     'source_item' => $source_item,
                     'local_product' => $local_product,
-                    'max_quantity' => $max_quantity
+                    'max_quantity' => $max_quantity,
+                    'note' => $item_note
                 ];
             }
 

@@ -767,7 +767,8 @@ jQuery(document).ready(function($) {
                 import_quantity: data.quantity,
                 is_tracking: data.isTracking,
                 selected_lots: data.isTracking ? data.selectedLots : [],
-                source_ledger_item_id: item.local_ledger_item_id || item.ledger_item_id
+                source_ledger_item_id: item.local_ledger_item_id || item.ledger_item_id,
+                item_note: item.local_ledger_item_note || ''
             });
         });
         return items;
