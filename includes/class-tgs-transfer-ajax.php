@@ -1395,7 +1395,7 @@ class TGS_Transfer_Ajax
                             $lot_id
                         ));
 
-                        // Nếu condition = 1 (lỗi) thì set is_active = 3 (DAMAGED/đã hủy)
+                        // Nếu condition = 3 (lỗi) thì set is_active = 3 (DAMAGED/đã hủy)
                         // Ngược lại set is_active = 1 (ACTIVE)
                         $new_lot_status = (intval($lot_condition) === 3)
                             ? TGS_PRODUCT_LOT_DAMAGED
@@ -1415,7 +1415,7 @@ class TGS_Transfer_Ajax
                             'previous_status' => TGS_PRODUCT_LOT_PENDING,
                             'new_status' => $new_lot_status,
                             'lot_condition' => intval($lot_condition),
-                            'is_damaged' => (intval($lot_condition) === 1),
+                            'is_damaged' => (intval($lot_condition) === 3),
                             'source_blog_id' => $source_blog_id,
                             'to_blog_id' => $current_blog_id,
                             'ledger_id' => $ledger_id,
@@ -1919,8 +1919,8 @@ class TGS_Transfer_Ajax
                 continue;
             }
 
-            // Validate condition (0 = Mới, 1 = Hàng lỗi trả mẹ)
-            if (!in_array($condition, [0, 1])) {
+            // Validate condition (0 = Mới, 3 = Hàng lỗi)
+            if (!in_array($condition, [0, 3])) {
                 $condition = 0;
             }
 

@@ -587,7 +587,7 @@ jQuery(document).ready(function($) {
                 expDate: lot.exp_date ? formatExpDate(lot.exp_date) : '—',
                 conditionHtml: `<select class="form-select form-select-sm" data-lot-id="${lotId}">
                     <option value="0" ${condData.condition === 0 ? 'selected' : ''}>Mới</option>
-                    <option value="1" ${condData.condition === 1 ? 'selected' : ''}>Lỗi</option>
+                    <option value="3" ${condData.condition === 3 ? 'selected' : ''}>Lỗi</option>
                 </select>`,
                 scannedHtml: condData.scanned ? '<span class="text-success">OK</span>' : '—',
                 condition: condData.condition,
