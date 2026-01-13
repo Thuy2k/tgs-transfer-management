@@ -1381,7 +1381,7 @@ class TGS_Transfer_Ajax
                 $is_tracking = intval($item->local_product_is_tracking) === 1;
 
                 if ($is_tracking) {
-                    // Cập nhật lot thành ACTIVE
+                    // Cập nhật lot thành ACTIVE hoặc DAMAGED (nếu condition = 1)
                     $lot_ids = json_decode($item->list_product_lots, true) ?: [];
                     $source_blog_id = $local_transfer ? intval($local_transfer->source_blog_id) : 0;
 
@@ -1389,10 +1389,22 @@ class TGS_Transfer_Ajax
                         // Tự động điền local_product_barcode_main nếu chưa có
                         TGS_Global_Lots_Helper::ensure_lot_has_barcode_main($lot_id, $item->local_product_name_id);
 
-                        // Cập nhật lot về shop hiện tại và active
+                        // Lấy thông tin condition của lot để xác định status
+                        $lot_condition = $wpdb->get_var($wpdb->prepare(
+                            "SELECT global_product_lot_condition FROM {$lots_table} WHERE global_product_lot_id = %d",
+                            $lot_id
+                        ));
+
+                        // Nếu condition = 1 (lỗi) thì set is_active = 3 (DAMAGED/đã hủy)
+                        // Ngược lại set is_active = 1 (ACTIVE)
+                        $new_lot_status = (intval($lot_condition) === 3)
+                            ? TGS_PRODUCT_LOT_DAMAGED
+                            : TGS_PRODUCT_LOT_ACTIVE;
+
+                        // Cập nhật lot về shop hiện tại và status tương ứng
                         // Note: to_blog_id đã đúng rồi (được set từ lúc shop mẹ duyệt xuất), không cần update
                         $wpdb->update($lots_table, [
-                            'local_product_lot_is_active' => TGS_PRODUCT_LOT_ACTIVE,
+                            'local_product_lot_is_active' => $new_lot_status,
                             'local_product_name_id' => $item->local_product_name_id,
                             'local_imported_date' => time(),
                             'updated_at' => current_time('mysql')
@@ -1401,7 +1413,9 @@ class TGS_Transfer_Ajax
                         // ========== GHI LOG VÀO product_lot_meta ==========
                         TGS_Global_Lots_Helper::add_lot_log($lot_id, 'transfer_import_approved', [
                             'previous_status' => TGS_PRODUCT_LOT_PENDING,
-                            'new_status' => TGS_PRODUCT_LOT_ACTIVE,
+                            'new_status' => $new_lot_status,
+                            'lot_condition' => intval($lot_condition),
+                            'is_damaged' => (intval($lot_condition) === 1),
                             'source_blog_id' => $source_blog_id,
                             'to_blog_id' => $current_blog_id,
                             'ledger_id' => $ledger_id,
