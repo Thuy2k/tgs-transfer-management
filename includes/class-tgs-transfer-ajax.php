@@ -2673,8 +2673,10 @@ class TGS_Transfer_Ajax
      * Shop đã bán (shop mẹ) nhận lại hàng trả từ shop đã mua (shop con)
      *
      * Luồng tương tự create_import nhưng:
-     * - transfer_type = TGS_TRANSFER_TYPE_RETURN
-     * - source = shop trả, destination = shop nhận trả
+     * - transfer_type = TGS_TRANSFER_TYPE_RETURN (2)
+     * - source = shop trả (con), destination = shop nhận trả (mẹ)
+     * - Source ledger type = TGS_LEDGER_TYPE_INTERNAL_RETURN (14)
+     * - Destination ledger type = TGS_LEDGER_TYPE_INTERNAL_RETURN_RECEIVE (15)
      */
     public static function create_return_receive()
     {
@@ -2685,59 +2687,115 @@ class TGS_Transfer_Ajax
         $current_user_id = get_current_user_id();
 
         $transfer_id = intval($_POST['transfer_id'] ?? 0);
-        $note = sanitize_textarea_field($_POST['note'] ?? '');
+        $import_note = sanitize_textarea_field($_POST['note'] ?? $_POST['import_note'] ?? '');
+        $items_json = isset($_POST['items']) ? wp_unslash($_POST['items']) : '';
 
         if (!$transfer_id) {
             wp_send_json_error(['message' => 'Thiếu ID transfer']);
         }
 
-        $transfer_table = $wpdb->prefix . 'transfer_ledger';
-        $ledger_table = $wpdb->prefix . 'local_ledger';
+        // Parse items từ frontend (nếu có) - tương tự create_import
+        $custom_items = [];
+        if (!empty($items_json)) {
+            $custom_items = json_decode($items_json, true);
+            if (!is_array($custom_items)) {
+                $custom_items = [];
+            }
+        }
 
-        // Lấy thông tin transfer
-        $transfer = $wpdb->get_row($wpdb->prepare("
-            SELECT * FROM {$transfer_table}
+        // Build lookup maps: barcode => import_quantity và barcode => selected_lots
+        $import_quantities = [];
+        $selected_lots_map = [];
+        $item_notes_map = [];
+        foreach ($custom_items as $ci) {
+            if (isset($ci['barcode']) && isset($ci['import_quantity'])) {
+                $import_quantities[$ci['barcode']] = intval($ci['import_quantity']);
+            }
+            if (isset($ci['barcode']) && isset($ci['selected_lots']) && is_array($ci['selected_lots'])) {
+                $selected_lots_map[$ci['barcode']] = $ci['selected_lots'];
+            }
+            if (isset($ci['barcode']) && isset($ci['item_note'])) {
+                $item_notes_map[$ci['barcode']] = sanitize_textarea_field($ci['item_note']);
+            }
+        }
+
+        // Step 1: Query bảng transfer_ledger của shop hiện tại
+        $local_transfer_table = $wpdb->prefix . 'transfer_ledger';
+
+        $local_transfer = $wpdb->get_row($wpdb->prepare("
+            SELECT * FROM {$local_transfer_table}
             WHERE transfer_ledger_id = %d
             AND destination_blog_id = %d
             AND transfer_type = %d
         ", $transfer_id, $current_blog_id, TGS_TRANSFER_TYPE_RETURN));
 
-        if (!$transfer) {
-            wp_send_json_error(['message' => 'Không tìm thấy thông tin trả hàng']);
+        if (!$local_transfer) {
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu chuyển trả']);
         }
 
-        if ($transfer->destination_ledger_id) {
-            wp_send_json_error(['message' => 'Phiếu nhận trả đã được tạo trước đó']);
+        // Kiểm tra đã nhập chưa
+        if (!empty($local_transfer->destination_ledger_id)) {
+            wp_send_json_error(['message' => 'Phiếu này đã được tạo phiếu nhận trả trước đó']);
         }
 
-        $source_blog_id = intval($transfer->source_blog_id);
+        $source_blog_id = intval($local_transfer->source_blog_id);
+        $source_ledger_id = intval($local_transfer->source_ledger_id);
 
-        // Switch sang shop trả để lấy thông tin phiếu trả
+        // Step 2: Switch sang shop trả để lấy thông tin
         switch_to_blog($source_blog_id);
 
         $source_ledger_table = $wpdb->prefix . 'local_ledger';
         $source_ledger_item_table = $wpdb->prefix . 'local_ledger_item';
+        $source_products_table = $wpdb->prefix . 'local_product_name';
 
         $source_ledger = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$source_ledger_table}
             WHERE local_ledger_id = %d
-        ", $transfer->source_ledger_id));
+        ", $source_ledger_id));
 
         if (!$source_ledger) {
             restore_current_blog();
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu trả từ shop trả']);
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu trả nguồn']);
         }
 
-        // Lấy items từ phiếu trả
-        $item_ids = json_decode($source_ledger->local_ledger_item_id, true) ?: [];
-        $items = [];
+        // Kiểm tra phiếu xuất tự động (phiếu con) đã duyệt chưa
+        // Phiếu xuất tự động có local_ledger_parent_id = phiếu cha (type 14 - INTERNAL_RETURN)
+        $auto_export_ledger = $wpdb->get_row($wpdb->prepare("
+            SELECT local_ledger_id, local_ledger_approver_status
+            FROM {$source_ledger_table}
+            WHERE local_ledger_parent_id = %d
+            AND local_ledger_type = %d
+        ", $source_ledger_id, TGS_LEDGER_TYPE_SALE));
 
+        if ($auto_export_ledger) {
+            // Check trạng thái duyệt của phiếu xuất tự động
+            if ($auto_export_ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
+                restore_current_blog();
+                wp_send_json_error(['message' => 'Phiếu xuất tự động chưa được shop trả duyệt']);
+            }
+        } else {
+            // Fallback: nếu không có phiếu con thì check phiếu cha
+            if ($source_ledger->local_ledger_approver_status != TGS_APPROVER_STATUS_APPROVED) {
+                restore_current_blog();
+                wp_send_json_error(['message' => 'Phiếu trả chưa được shop trả duyệt']);
+            }
+        }
+
+        // Lấy các item từ local_ledger_item_id (JSON array của item IDs)
+        $item_ids = [];
+        if (!empty($source_ledger->local_ledger_item_id)) {
+            $item_ids = json_decode($source_ledger->local_ledger_item_id, true) ?: [];
+        }
+
+        $source_items = [];
         if (!empty($item_ids)) {
             $item_ids_str = implode(',', array_map('intval', $item_ids));
-            $items = $wpdb->get_results("
-                SELECT * FROM {$source_ledger_item_table}
-                WHERE local_ledger_item_id IN ({$item_ids_str})
-                AND (is_deleted = 0 OR is_deleted IS NULL)
+            $source_items = $wpdb->get_results("
+                SELECT li.*, p.*
+                FROM {$source_ledger_item_table} li
+                JOIN {$source_products_table} p ON li.local_product_name_id = p.local_product_name_id
+                WHERE li.local_ledger_item_id IN ({$item_ids_str})
+                AND (li.is_deleted = 0 OR li.is_deleted IS NULL)
             ");
         }
 
@@ -2745,22 +2803,164 @@ class TGS_Transfer_Ajax
 
         restore_current_blog();
 
-        // Tạo phiếu nhận trả nội bộ (NTN)
+        if (empty($source_items)) {
+            wp_send_json_error(['message' => 'Không có sản phẩm trong phiếu trả']);
+        }
+
+        // Step 3: Quay về shop hiện tại để tạo phiếu nhận trả
         $wpdb->query('START TRANSACTION');
 
         try {
-            // Sinh mã phiếu
-            $ticket_code = 'NTN-' . str_pad(mt_rand(0, 99999999), 8, '0', STR_PAD_LEFT);
+            $ledger_table = $wpdb->prefix . 'local_ledger';
+            $products_table = $wpdb->prefix . 'local_product_name';
+            $lots_table = TGS_TABLE_GLOBAL_PRODUCT_LOTS;
 
-            // Tạo phiếu cha NTN
+            // Tạo mã phiếu cha (Nhận Trả Nội Bộ)
+            $parent_ledger_code = 'NTN-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
+            // Mã phiếu con (nhập tự động)
+            $auto_import_code = 'ANT-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
+
+            // Tính tổng giá trị và xử lý các item
+            $total_amount = 0;
+            $import_items_data = []; // Items cho phiếu nhập tự động
+            $total_max_qty = 0;
+            $total_import_qty = 0;
+
+            foreach ($source_items as $source_item) {
+                $barcode = $source_item->local_product_barcode_main;
+                $is_tracking = intval($source_item->local_product_is_tracking) === 1;
+                $max_quantity = intval($source_item->quantity);
+
+                // Lấy quantity nhập từ frontend, nếu không có thì dùng max
+                $import_quantity = isset($import_quantities[$barcode])
+                    ? intval($import_quantities[$barcode])
+                    : $max_quantity;
+
+                // Xử lý lot_ids cho tracking products TRƯỚC khi validate quantity
+                $lot_barcodes_to_import = [];
+                if ($is_tracking && !empty($source_item->list_product_lots)) {
+                    $all_lot_ids = json_decode($source_item->list_product_lots, true) ?: [];
+
+                    // Ưu tiên sử dụng selected_lots từ frontend (user đã chọn cụ thể)
+                    if (isset($selected_lots_map[$barcode]) && !empty($selected_lots_map[$barcode])) {
+                        // Validate: chỉ lấy các lot thực sự có trong source
+                        $lot_ids_to_import = array_values(array_intersect(
+                            $selected_lots_map[$barcode],
+                            $all_lot_ids
+                        ));
+                        // Quantity cho tracking = số lot đã chọn
+                        $import_quantity = count($lot_ids_to_import);
+                    } else {
+                        // Fallback: lấy số lượng lot tương ứng với import_quantity (legacy)
+                        $lot_ids_to_import = array_slice($all_lot_ids, 0, $import_quantity);
+                    }
+
+                    // Convert lot_ids to barcodes for create_import_ledger
+                    foreach ($lot_ids_to_import as $lot_id) {
+                        $lot = $wpdb->get_row($wpdb->prepare("
+                            SELECT global_product_lot_barcode FROM {$lots_table}
+                            WHERE global_product_lot_id = %d
+                        ", $lot_id));
+                        if ($lot) {
+                            $lot_barcodes_to_import[] = $lot->global_product_lot_barcode;
+                        }
+                    }
+                }
+
+                // Validate: không được vượt quá max và không âm
+                if ($import_quantity < 0) $import_quantity = 0;
+                if ($import_quantity > $max_quantity) $import_quantity = $max_quantity;
+
+                // Track totals để xác định transfer_status
+                $total_max_qty += $max_quantity;
+                $total_import_qty += $import_quantity;
+
+                // Bỏ qua nếu không nhập sản phẩm này
+                if ($import_quantity <= 0) {
+                    continue;
+                }
+
+                // Tìm sản phẩm tương ứng ở shop hiện tại (shop mẹ)
+                // Lưu ý: Shop mẹ thường đã có sản phẩm vì đây là shop gốc
+                $local_product = $wpdb->get_row($wpdb->prepare("
+                    SELECT * FROM {$products_table}
+                    WHERE local_product_barcode_main = %s
+                    AND (is_deleted IS NULL OR is_deleted = 0)
+                ", $barcode));
+
+                // Nếu sản phẩm chưa có ở shop hiện tại thì đồng bộ từ shop trả
+                if (!$local_product) {
+                    $new_product_id = self::sync_product_from_source($source_item, $source_blog_id);
+
+                    if (!$new_product_id) {
+                        throw new Exception("Lỗi tạo sản phẩm mới với barcode '{$barcode}'");
+                    }
+
+                    // Lấy lại thông tin sản phẩm vừa tạo
+                    $local_product = $wpdb->get_row($wpdb->prepare("
+                        SELECT * FROM {$products_table}
+                        WHERE local_product_name_id = %d
+                    ", $new_product_id));
+                }
+
+                // Lấy thông tin giá/thuế/chiết khấu từ source_item
+                $price = floatval($source_item->price ?? 0);
+                $tax_percent = floatval($source_item->local_ledger_item_tax_percent ?? 0);
+                $discount_percent = floatval($source_item->local_ledger_item_discount ?? 0);
+
+                // Tính toán như trang xuất
+                $subtotal_no_vat = $import_quantity * $price;
+                $discount_amount = $subtotal_no_vat * ($discount_percent / 100);
+                $after_discount = $subtotal_no_vat - $discount_amount;
+                $tax_amount = $after_discount * ($tax_percent / 100);
+                $subtotal = $after_discount + $tax_amount;
+
+                $total_amount += $subtotal;
+
+                // Lấy item_note từ frontend hoặc từ source_item
+                $item_note = $item_notes_map[$barcode] ?? ($source_item->local_ledger_item_note ?? '');
+
+                $import_items_data[] = [
+                    'product_id' => $local_product->local_product_name_id,
+                    'quantity' => $import_quantity,
+                    'price' => $price,
+                    'tax_percent' => $tax_percent,
+                    'tax_amount' => $tax_amount,
+                    'discount_type' => 'percent',
+                    'discount_value' => $discount_percent,
+                    'discount_amount' => $discount_amount,
+                    'subtotal' => $subtotal,
+                    'lot_barcodes' => $lot_barcodes_to_import,
+                    'is_tracking' => $is_tracking,
+                    'source_item' => $source_item,
+                    'local_product' => $local_product,
+                    'max_quantity' => $max_quantity,
+                    'note' => $item_note
+                ];
+            }
+
+            // Validate: phải có ít nhất 1 sản phẩm được nhập
+            if (empty($import_items_data)) {
+                throw new Exception('Vui lòng chọn ít nhất 1 sản phẩm để nhận trả');
+            }
+
+            // Xác định transfer_status dựa trên tổng quantity
+            $is_partial = ($total_import_qty < $total_max_qty);
+
+            // ========== BƯỚC 1: Tạo phiếu CHA (Nhận Trả Nội Bộ) - KHÔNG có items ==========
+            $note_suffix = $is_partial
+                ? "\n[Từ phiếu trả: {$source_ledger->local_ledger_code}] - Nhận 1 phần: {$total_import_qty}/{$total_max_qty}"
+                : "\n[Từ phiếu trả: {$source_ledger->local_ledger_code}]";
+
             $wpdb->insert($ledger_table, [
-                'local_ledger_code' => $ticket_code,
-                'local_ledger_type' => TGS_LEDGER_TYPE_INTERNAL_RETURN_RECEIVE,
+                'local_ledger_code' => $parent_ledger_code,
+                'local_ledger_type' => TGS_LEDGER_TYPE_INTERNAL_RETURN_RECEIVE, // Type 15
+                'local_ledger_note' => $import_note . $note_suffix,
+                'local_ledger_total_amount' => $total_amount,
                 'local_ledger_status' => TGS_LEDGER_STATUS_PENDING,
                 'local_ledger_approver_status' => TGS_APPROVER_STATUS_PENDING,
-                'local_ledger_total_amount' => $source_ledger->local_ledger_total_amount ?? 0,
-                'local_ledger_note' => $note ?: "Nhận trả từ shop: {$source_shop_name}",
-                'local_ledger_user_id' => $current_user_id,
+                'user_id' => $current_user_id,
+                'is_deleted' => 0,
                 'created_at' => current_time('mysql'),
                 'updated_at' => current_time('mysql')
             ]);
@@ -2768,66 +2968,103 @@ class TGS_Transfer_Ajax
             $parent_ledger_id = $wpdb->insert_id;
 
             if (!$parent_ledger_id) {
-                throw new Exception('Không thể tạo phiếu nhận trả');
+                throw new Exception('Lỗi tạo phiếu nhận trả nội bộ (phiếu cha)');
             }
 
-            // Tạo items cho phiếu nhận trả (copy từ phiếu trả)
-            // Logic tương tự create_import
-            $created_item_ids = [];
-            $ledger_item_table = $wpdb->prefix . 'local_ledger_item';
+            // ========== BƯỚC 2: Tạo phiếu CON (Nhập tự động) - CÓ items ==========
+            // Sử dụng TGS_Shop_Base_Import_Export::create_import_ledger
+            $auto_import_ledger_data = [
+                'local_ledger_code' => $auto_import_code,
+                'local_ledger_type' => TGS_LEDGER_TYPE_PURCHASE, // Type 1 - Phiếu nhập
+                'local_ledger_note' => 'Nhập tự động từ phiếu: ' . $parent_ledger_code,
+                'local_ledger_total_amount' => $total_amount,
+                'local_ledger_status' => TGS_LEDGER_STATUS_PENDING,
+                'local_ledger_approver_status' => TGS_APPROVER_STATUS_PENDING,
+                'user_id' => $current_user_id,
+            ];
 
-            foreach ($items as $item) {
-                $wpdb->insert($ledger_item_table, [
-                    'local_ledger_id' => $parent_ledger_id,
-                    'local_product_name_id' => $item->local_product_name_id,
-                    'local_ledger_item_quantity' => $item->local_ledger_item_quantity,
-                    'local_ledger_item_price' => $item->local_ledger_item_price,
-                    'local_ledger_item_total' => $item->local_ledger_item_total,
-                    'list_product_lots' => $item->list_product_lots,
-                    'created_at' => current_time('mysql'),
-                    'updated_at' => current_time('mysql')
-                ]);
-                $created_item_ids[] = $wpdb->insert_id;
-            }
+            $auto_import_result = TGS_Shop_Base_Import_Export::create_import_ledger(
+                $auto_import_ledger_data,
+                $import_items_data,
+                $parent_ledger_id // parent_id = phiếu cha
+            );
 
-            // Cập nhật phiếu cha với list item IDs
+            $auto_import_ledger_id = $auto_import_result['ledger_id'];
+            $auto_import_item_ids = $auto_import_result['items'];
+
+            // ========== BƯỚC 3: Cập nhật phiếu CHA với item IDs từ phiếu con ==========
+            $items_json = json_encode($auto_import_item_ids, JSON_UNESCAPED_UNICODE);
             $wpdb->update($ledger_table, [
-                'local_ledger_item_id' => json_encode($created_item_ids)
+                'local_ledger_item_id' => $items_json
             ], ['local_ledger_id' => $parent_ledger_id]);
 
-            // Cập nhật transfer_ledger ở shop hiện tại
-            $wpdb->update($transfer_table, [
-                'destination_ledger_id' => $parent_ledger_id,
-                'transfer_status' => TGS_TRANSFER_STATUS_ACCEPTED,
-                'updated_at' => current_time('mysql')
-            ], ['transfer_ledger_id' => $transfer_id]);
-
-            // Cập nhật transfer_ledger ở shop trả
+            // ========== BƯỚC 4: Cập nhật transfer_ledger ở shop nguồn (shop trả) ==========
             switch_to_blog($source_blog_id);
-            $source_transfer_table = $wpdb->prefix . 'transfer_ledger';
-            $wpdb->update($source_transfer_table, [
-                'destination_ledger_id' => $parent_ledger_id,
-                'transfer_status' => TGS_TRANSFER_STATUS_ACCEPTED,
-                'updated_at' => current_time('mysql')
+
+            $source_transfer_table_name = $wpdb->prefix . 'transfer_ledger';
+            $wpdb->update($source_transfer_table_name, [
+                'destination_ledger_id' => $parent_ledger_id, // Phiếu cha
+                'destination_ledger_item_id' => $items_json, // Items từ phiếu con (nhập tự động)
             ], [
-                'source_ledger_id' => $transfer->source_ledger_id,
+                'source_ledger_id' => $source_ledger_id,
                 'transfer_type' => TGS_TRANSFER_TYPE_RETURN
             ]);
+
             restore_current_blog();
+
+            // ========== BƯỚC 5: Cập nhật transfer_ledger ở shop hiện tại (shop nhận trả) ==========
+            $wpdb->update($local_transfer_table, [
+                'destination_ledger_id' => $parent_ledger_id, // Phiếu cha
+                'destination_ledger_item_id' => $items_json, // Items từ phiếu con
+            ], ['transfer_ledger_id' => $transfer_id]);
 
             $wpdb->query('COMMIT');
 
-            // Log
+            // ========== GHI LOG LOT: transfer_return_receive_created ==========
+            foreach ($import_items_data as $item_data) {
+                if ($item_data['is_tracking'] && !empty($item_data['lot_barcodes'])) {
+                    foreach ($item_data['lot_barcodes'] as $lot_barcode) {
+                        $lot = $wpdb->get_row($wpdb->prepare("
+                            SELECT global_product_lot_id FROM {$lots_table}
+                            WHERE global_product_lot_barcode = %s
+                        ", $lot_barcode));
+                        if ($lot) {
+                            TGS_Global_Lots_Helper::add_lot_log($lot->global_product_lot_id, 'transfer_return_receive_created', [
+                                'source_blog_id' => $source_blog_id,
+                                'destination_blog_id' => $current_blog_id,
+                                'parent_ledger_id' => $parent_ledger_id,
+                                'auto_import_ledger_id' => $auto_import_ledger_id,
+                                'ledger_code' => $parent_ledger_code,
+                                'source_ledger_id' => $source_ledger_id,
+                                'source_ledger_code' => $source_ledger->local_ledger_code ?? '',
+                                'is_partial' => $is_partial
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            // Thêm log tạo phiếu nhận trả
             TGS_Shop_Ticket_Helper::add_ticket_log($parent_ledger_id, 'create', [
                 'source_blog_id' => $source_blog_id,
                 'source_shop_name' => $source_shop_name,
-                'items_count' => count($items),
+                'items_count' => count($import_items_data),
+                'total_amount' => $total_amount,
+                'is_partial' => $is_partial,
+                'auto_import_ledger_id' => $auto_import_ledger_id,
+                'auto_import_code' => $auto_import_code,
                 'transfer_type' => 'return_receive'
-            ]);
+            ], 'Tạo phiếu nhận trả nội bộ từ shop: ' . $source_shop_name);
 
             wp_send_json_success([
-                'message' => 'Tạo phiếu nhận trả nội bộ thành công!',
+                'message' => 'Tạo phiếu nhận trả nội bộ thành công',
                 'ledger_id' => $parent_ledger_id,
+                'auto_import_ledger_id' => $auto_import_ledger_id,
+                'ledger_code' => $parent_ledger_code,
+                'auto_import_code' => $auto_import_code,
+                'is_partial' => $is_partial,
+                'total_imported' => $total_import_qty,
+                'total_max' => $total_max_qty,
                 'redirect_url' => admin_url('admin.php?page=tgs-shop-management&view=ticket-internal-return-receive-detail&id=' . $parent_ledger_id)
             ]);
 
