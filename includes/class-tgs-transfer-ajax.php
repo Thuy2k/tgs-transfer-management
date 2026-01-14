@@ -211,20 +211,21 @@ class TGS_Transfer_Ajax
             wp_send_json_error(['message' => 'Phiếu đã được duyệt trước đó']);
         }
 
-        // Tìm phiếu cha TRANSFER_EXPORT (type 12)
+        // Tìm phiếu cha TRANSFER_EXPORT (type 12) hoặc INTERNAL_RETURN (type 14)
         $parent_id = intval($child_ledger->local_ledger_parent_id);
         if (!$parent_id) {
             wp_send_json_error(['message' => 'Không tìm thấy phiếu cha']);
         }
 
+        // Check cả 2 loại phiếu cha: bán nội bộ (12) và trả nội bộ (14)
         $parent_ledger = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$ledger_table}
             WHERE local_ledger_id = %d
-            AND local_ledger_type = %d
-        ", $parent_id, TGS_LEDGER_TYPE_TRANSFER_EXPORT));
+            AND local_ledger_type IN (%d, %d)
+        ", $parent_id, TGS_LEDGER_TYPE_TRANSFER_EXPORT, TGS_LEDGER_TYPE_INTERNAL_RETURN));
 
         if (!$parent_ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu bán nội bộ']);
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu bán/trả nội bộ']);
         }
 
         // Lấy thông tin transfer từ phiếu cha
@@ -313,17 +314,27 @@ class TGS_Transfer_Ajax
 
             // Thêm log duyệt phiếu xuất kho
             $dest_shop_name = get_blog_option($destination_blog_id, 'blogname');
+
+            // Xác định message dựa trên loại phiếu cha
+            $parent_type = intval($parent_ledger->local_ledger_type);
+            $is_return = ($parent_type === TGS_LEDGER_TYPE_INTERNAL_RETURN);
+            $log_message = !empty($note) ? $note : 'Duyệt phiếu xuất kho (chuyển đến shop: ' . $dest_shop_name . ')';
+            $success_message = $is_return
+                ? 'Duyệt phiếu trả nội bộ thành công. Shop mẹ có thể nhận hàng trả.'
+                : 'Duyệt phiếu bán nội bộ thành công. Shop mua có thể nhận hàng.';
+
             TGS_Shop_Ticket_Helper::add_ticket_log($ledger_id, 'approve', [
                 'destination_blog_id' => $destination_blog_id,
                 'destination_shop_name' => $dest_shop_name,
                 'items_count' => count($items),
                 'note' => $note,
                 'parent_ledger_id' => $parent_id,
-                'parent_ledger_code' => $parent_ledger->local_ledger_code ?? ''
-            ], !empty($note) ? $note : 'Duyệt phiếu xuất kho (chuyển đến shop: ' . $dest_shop_name . ')');
+                'parent_ledger_code' => $parent_ledger->local_ledger_code ?? '',
+                'is_return' => $is_return
+            ], $log_message);
 
             wp_send_json_success([
-                'message' => 'Duyệt phiếu bán nội bộ thành công. Shop mua có thể nhận hàng.'
+                'message' => $success_message
             ]);
 
         } catch (Exception $e) {
@@ -945,20 +956,21 @@ class TGS_Transfer_Ajax
             wp_send_json_error(['message' => 'Phiếu đã được duyệt trước đó']);
         }
 
-        // Tìm phiếu cha TRANSFER_IMPORT (type 13)
+        // Tìm phiếu cha TRANSFER_IMPORT (type 13) hoặc INTERNAL_RETURN_RECEIVE (type 15)
         $parent_id = intval($child_ledger->local_ledger_parent_id);
         if (!$parent_id) {
             wp_send_json_error(['message' => 'Không tìm thấy phiếu cha']);
         }
 
+        // Check cả 2 loại phiếu cha: mua nội bộ (13) và nhận trả nội bộ (15)
         $parent_ledger = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$ledger_table}
             WHERE local_ledger_id = %d
-            AND local_ledger_type = %d
-        ", $parent_id, TGS_LEDGER_TYPE_TRANSFER_IMPORT));
+            AND local_ledger_type IN (%d, %d)
+        ", $parent_id, TGS_LEDGER_TYPE_TRANSFER_IMPORT, TGS_LEDGER_TYPE_INTERNAL_RETURN_RECEIVE));
 
         if (!$parent_ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu mua nội bộ']);
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu mua/nhận trả nội bộ']);
         }
 
         // Lấy các item từ phiếu con nhập kho
@@ -2178,20 +2190,21 @@ class TGS_Transfer_Ajax
             wp_send_json_error(['message' => 'Không tìm thấy phiếu xuất kho']);
         }
 
-        // Tìm phiếu cha (TRANSFER_EXPORT type 12) qua local_ledger_parent_id
+        // Tìm phiếu cha (TRANSFER_EXPORT type 12 hoặc INTERNAL_RETURN type 14) qua local_ledger_parent_id
         $parent_ledger_id = intval($child_ledger->local_ledger_parent_id);
         if (!$parent_ledger_id) {
             wp_send_json_error(['message' => 'Không tìm thấy phiếu cha']);
         }
 
+        // Check cả 2 loại phiếu cha: bán nội bộ (12) và trả nội bộ (14)
         $parent_ledger = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$ledger_table}
             WHERE local_ledger_id = %d
-            AND local_ledger_type = %d
-        ", $parent_ledger_id, TGS_LEDGER_TYPE_TRANSFER_EXPORT));
+            AND local_ledger_type IN (%d, %d)
+        ", $parent_ledger_id, TGS_LEDGER_TYPE_TRANSFER_EXPORT, TGS_LEDGER_TYPE_INTERNAL_RETURN));
 
         if (!$parent_ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu bán nội bộ']);
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu bán/trả nội bộ']);
         }
 
         if ($child_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_REJECTED) {
@@ -2323,20 +2336,21 @@ class TGS_Transfer_Ajax
             wp_send_json_error(['message' => 'Không tìm thấy phiếu nhập kho']);
         }
 
-        // Tìm phiếu cha (TRANSFER_IMPORT type 13) qua local_ledger_parent_id
+        // Tìm phiếu cha (TRANSFER_IMPORT type 13 hoặc INTERNAL_RETURN_RECEIVE type 15) qua local_ledger_parent_id
         $parent_ledger_id = intval($child_ledger->local_ledger_parent_id);
         if (!$parent_ledger_id) {
             wp_send_json_error(['message' => 'Không tìm thấy phiếu cha']);
         }
 
+        // Check cả 2 loại phiếu cha: mua nội bộ (13) và nhận trả nội bộ (15)
         $parent_ledger = $wpdb->get_row($wpdb->prepare("
             SELECT * FROM {$ledger_table}
             WHERE local_ledger_id = %d
-            AND local_ledger_type = %d
-        ", $parent_ledger_id, TGS_LEDGER_TYPE_TRANSFER_IMPORT));
+            AND local_ledger_type IN (%d, %d)
+        ", $parent_ledger_id, TGS_LEDGER_TYPE_TRANSFER_IMPORT, TGS_LEDGER_TYPE_INTERNAL_RETURN_RECEIVE));
 
         if (!$parent_ledger) {
-            wp_send_json_error(['message' => 'Không tìm thấy phiếu mua nội bộ']);
+            wp_send_json_error(['message' => 'Không tìm thấy phiếu mua/nhận trả nội bộ']);
         }
 
         if ($child_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_REJECTED) {
