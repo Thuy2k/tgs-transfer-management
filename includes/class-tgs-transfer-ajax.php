@@ -984,10 +984,6 @@ class TGS_Transfer_Ajax
      */
     public static function approve_import()
     {
-        // DEBUG: Log để xác nhận hàm được gọi
-        error_log('=== TGS DEBUG: approve_import called ===');
-        error_log('POST data: ' . print_r($_POST, true));
-
         check_ajax_referer('tgs_transfer_nonce', 'nonce');
 
         global $wpdb;
