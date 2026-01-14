@@ -409,20 +409,23 @@ class TGS_Transfer_Ajax
      * - Query transfer_ledger của shop con hiện tại
      * - Switch sang shop mẹ (source_blog_id) để lấy local_ledger_approver_status
      */
-    public static function get_pending_imports()
+    /**
+     * Phương thức internal dùng chung cho get_pending_imports và get_pending_returns
+     *
+     * @param array $config Cấu hình:
+     *   - transfer_type: null (all) hoặc TGS_TRANSFER_TYPE_INTERNAL (1) hoặc TGS_TRANSFER_TYPE_RETURN (2)
+     */
+    private static function do_get_pending_transfers_internal($config)
     {
-        check_ajax_referer('tgs_transfer_nonce', 'nonce');
-
         global $wpdb;
         $current_blog_id = get_current_blog_id();
 
-        $pending_imports = [];
+        $pending_transfers = [];
 
-        // Lấy từ transfer_ledger của shop con hiện tại
         $transfer_table = $wpdb->prefix . 'transfer_ledger';
 
-        // Lấy các transfer chờ nhận (chưa có destination_ledger_id hoặc destination_ledger_id = 0)
-        $transfers = $wpdb->get_results($wpdb->prepare("
+        // Build query với điều kiện transfer_type tùy chọn
+        $query = "
             SELECT t.transfer_ledger_id as transfer_id,
                    t.source_blog_id,
                    t.source_ledger_id,
@@ -430,25 +433,36 @@ class TGS_Transfer_Ajax
                    t.destination_ledger_id,
                    t.transfer_status,
                    t.transfer_note as note,
-                   t.created_at
+                   t.created_at,
+                   t.transfer_type
             FROM {$transfer_table} t
             WHERE t.destination_blog_id = %d
             AND (t.destination_ledger_id IS NULL OR t.destination_ledger_id = 0)
             AND t.transfer_status != %d
-        ", $current_blog_id, TGS_TRANSFER_STATUS_ACCEPTED));
+        ";
+
+        $params = [$current_blog_id, TGS_TRANSFER_STATUS_ACCEPTED];
+
+        // Thêm điều kiện transfer_type nếu có
+        if (isset($config['transfer_type']) && $config['transfer_type'] !== null) {
+            $query .= " AND t.transfer_type = %d";
+            $params[] = $config['transfer_type'];
+        }
+
+        $transfers = $wpdb->get_results($wpdb->prepare($query, ...$params));
 
         foreach ($transfers as $transfer) {
             $source_blog_id = intval($transfer->source_blog_id);
 
             if (!$source_blog_id) continue;
 
-            // Switch sang shop mẹ để lấy thông tin phiếu xuất
+            // Switch sang shop nguồn để lấy thông tin phiếu
             switch_to_blog($source_blog_id);
 
             $source_ledger_table = $wpdb->prefix . 'local_ledger';
             $source_ledger_item_table = $wpdb->prefix . 'local_ledger_item';
 
-            // Lấy thông tin phiếu xuất từ shop mẹ (phiếu cha type 12)
+            // Lấy thông tin phiếu nguồn
             $source_ledger = $wpdb->get_row($wpdb->prepare("
                 SELECT local_ledger_code,
                        local_ledger_total_amount,
@@ -465,16 +479,15 @@ class TGS_Transfer_Ajax
                 $transfer->local_ledger_note = $source_ledger->local_ledger_note;
                 $transfer->local_ledger_approver_status = $source_ledger->local_ledger_approver_status;
 
-                // Tên shop mẹ
+                // Tên shop nguồn
                 $transfer->source_shop_name = get_bloginfo('name');
 
-                // Đếm số sản phẩm từ local_ledger_item_id (JSON array của item IDs từ phiếu con)
+                // Đếm số sản phẩm từ local_ledger_item_id
                 $item_ids = [];
                 if (!empty($source_ledger->local_ledger_item_id)) {
                     $item_ids = json_decode($source_ledger->local_ledger_item_id, true) ?: [];
                 }
 
-                // Đếm số items thực tế từ bảng local_ledger_item
                 $items_count = 0;
                 if (!empty($item_ids)) {
                     $item_ids_str = implode(',', array_map('intval', $item_ids));
@@ -486,8 +499,7 @@ class TGS_Transfer_Ajax
                 }
                 $transfer->items_count = intval($items_count);
 
-                // Tìm phiếu xuất tự động (phiếu con) có parent_id = phiếu cha (type 12)
-                // Phiếu xuất tự động mới là phiếu quan trọng cần check trạng thái duyệt
+                // Kiểm tra trạng thái duyệt của phiếu xuất tự động (phiếu con)
                 $auto_export_ledger = $wpdb->get_row($wpdb->prepare("
                     SELECT local_ledger_id, local_ledger_approver_status
                     FROM {$source_ledger_table}
@@ -495,9 +507,7 @@ class TGS_Transfer_Ajax
                     AND local_ledger_type = %d
                 ", $transfer->source_ledger_id, TGS_LEDGER_TYPE_SALE));
 
-                // Set trạng thái hiển thị - check trạng thái duyệt của phiếu xuất tự động (phiếu con)
-                // TGS_TRANSFER_STATUS_ACCEPTED = 1 (đã duyệt xuất, cho phép tạo phiếu nhập)
-                // TGS_TRANSFER_STATUS_PENDING = 0 (chờ duyệt)
+                // Set trạng thái hiển thị
                 if ($auto_export_ledger) {
                     $transfer->transfer_status = ($auto_export_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED)
                         ? TGS_TRANSFER_STATUS_ACCEPTED : TGS_TRANSFER_STATUS_PENDING;
@@ -507,13 +517,27 @@ class TGS_Transfer_Ajax
                         ? TGS_TRANSFER_STATUS_ACCEPTED : TGS_TRANSFER_STATUS_PENDING;
                 }
 
-                $pending_imports[] = $transfer;
+                $pending_transfers[] = $transfer;
             }
 
             restore_current_blog();
         }
 
-        wp_send_json_success($pending_imports);
+        wp_send_json_success($pending_transfers);
+    }
+
+    /**
+     * Lấy danh sách phiếu chờ nhập (mua nội bộ)
+     * Gọi đến do_get_pending_transfers_internal
+     */
+    public static function get_pending_imports()
+    {
+        check_ajax_referer('tgs_transfer_nonce', 'nonce');
+
+        // Gọi hàm dùng chung - không filter theo transfer_type (lấy tất cả loại INTERNAL)
+        self::do_get_pending_transfers_internal([
+            'transfer_type' => TGS_TRANSFER_TYPE_INTERNAL // 1 = sale/internal
+        ]);
     }
 
     /**
@@ -2561,106 +2585,18 @@ class TGS_Transfer_Ajax
      * Lấy danh sách phiếu trả hàng nội bộ đang chờ nhận
      * Tương tự get_pending_imports nhưng với transfer_type = TGS_TRANSFER_TYPE_RETURN
      */
+    /**
+     * Lấy danh sách phiếu chờ nhận trả (trả hàng nội bộ)
+     * Gọi đến do_get_pending_transfers_internal với transfer_type = RETURN
+     */
     public static function get_pending_returns()
     {
         check_ajax_referer('tgs_transfer_nonce', 'nonce');
 
-        global $wpdb;
-        $current_blog_id = get_current_blog_id();
-
-        $pending_returns = [];
-
-        $transfer_table = $wpdb->prefix . 'transfer_ledger';
-
-        // Lấy các transfer return chờ nhận (destination_blog_id = shop hiện tại, chưa có destination_ledger_id)
-        // Với trả hàng: source = shop trả, destination = shop nhận trả
-        $transfers = $wpdb->get_results($wpdb->prepare("
-            SELECT t.transfer_ledger_id as transfer_id,
-                   t.source_blog_id,
-                   t.source_ledger_id,
-                   t.destination_blog_id,
-                   t.destination_ledger_id,
-                   t.transfer_status,
-                   t.transfer_note as note,
-                   t.created_at,
-                   t.transfer_type
-            FROM {$transfer_table} t
-            WHERE t.destination_blog_id = %d
-            AND (t.destination_ledger_id IS NULL OR t.destination_ledger_id = 0)
-            AND t.transfer_type = %d
-            AND t.transfer_status != %d
-        ", $current_blog_id, TGS_TRANSFER_TYPE_RETURN, TGS_TRANSFER_STATUS_ACCEPTED));
-
-        foreach ($transfers as $transfer) {
-            $source_blog_id = intval($transfer->source_blog_id);
-
-            if (!$source_blog_id) continue;
-
-            // Switch sang shop trả để lấy thông tin phiếu trả
-            switch_to_blog($source_blog_id);
-
-            $source_ledger_table = $wpdb->prefix . 'local_ledger';
-            $source_ledger_item_table = $wpdb->prefix . 'local_ledger_item';
-
-            // Lấy thông tin phiếu trả từ shop trả
-            $source_ledger = $wpdb->get_row($wpdb->prepare("
-                SELECT local_ledger_code,
-                       local_ledger_total_amount,
-                       local_ledger_note,
-                       local_ledger_approver_status,
-                       local_ledger_item_id
-                FROM {$source_ledger_table}
-                WHERE local_ledger_id = %d
-            ", $transfer->source_ledger_id));
-
-            if ($source_ledger) {
-                $transfer->local_ledger_code = $source_ledger->local_ledger_code;
-                $transfer->local_ledger_total_amount = $source_ledger->local_ledger_total_amount;
-                $transfer->local_ledger_note = $source_ledger->local_ledger_note;
-                $transfer->local_ledger_approver_status = $source_ledger->local_ledger_approver_status;
-
-                // Tên shop trả
-                $transfer->source_shop_name = get_bloginfo('name');
-
-                // Đếm số sản phẩm
-                $item_ids = [];
-                if (!empty($source_ledger->local_ledger_item_id)) {
-                    $item_ids = json_decode($source_ledger->local_ledger_item_id, true) ?: [];
-                }
-
-                $items_count = 0;
-                if (!empty($item_ids)) {
-                    $item_ids_str = implode(',', array_map('intval', $item_ids));
-                    $items_count = $wpdb->get_var("
-                        SELECT COUNT(*) FROM {$source_ledger_item_table}
-                        WHERE local_ledger_item_id IN ({$item_ids_str})
-                        AND (is_deleted = 0 OR is_deleted IS NULL)
-                    ");
-                }
-                $transfer->items_count = intval($items_count);
-
-                // Kiểm tra trạng thái duyệt của phiếu xuất tự động (con của phiếu trả)
-                $auto_export_ledger = $wpdb->get_row($wpdb->prepare("
-                    SELECT local_ledger_id, local_ledger_approver_status
-                    FROM {$source_ledger_table}
-                    WHERE local_ledger_parent_id = %d
-                    AND local_ledger_type = %d
-                ", $transfer->source_ledger_id, TGS_LEDGER_TYPE_SALE));
-
-                if ($auto_export_ledger) {
-                    // Nếu phiếu xuất tự động đã được duyệt, cập nhật transfer_status = 1
-                    if ($auto_export_ledger->local_ledger_approver_status == TGS_APPROVER_STATUS_APPROVED) {
-                        $transfer->transfer_status = 1;
-                    }
-                }
-
-                $pending_returns[] = $transfer;
-            }
-
-            restore_current_blog();
-        }
-
-        wp_send_json_success($pending_returns);
+        // Gọi hàm dùng chung với filter transfer_type = RETURN
+        self::do_get_pending_transfers_internal([
+            'transfer_type' => TGS_TRANSFER_TYPE_RETURN // 2 = return
+        ]);
     }
 
     /**
