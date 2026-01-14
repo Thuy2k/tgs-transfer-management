@@ -1542,7 +1542,8 @@ class TGS_Transfer_Ajax
                             'barcode' => $lot->global_product_lot_barcode,
                             'exp_date' => $lot->exp_date,
                             'mfg_date' => $lot->mfg_date,
-                            'lot_code' => $lot->lot_code
+                            'lot_code' => $lot->lot_code,
+                            'condition' => intval($lot->global_product_lot_condition ?? 0)
                         ];
                     }
                 }
