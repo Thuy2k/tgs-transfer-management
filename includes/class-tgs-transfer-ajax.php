@@ -804,8 +804,15 @@ class TGS_Transfer_Ajax
                 ? "\n[{$config['labels']['note_suffix_partial']}: {$source_ledger->local_ledger_code}] - Nhận 1 phần: {$total_import_qty}/{$total_max_qty}"
                 : "\n[{$config['labels']['note_suffix_full']}: {$source_ledger->local_ledger_code}]";
 
+            // Tạo title từ template (nếu có)
+            $parent_title = '';
+            if (!empty($config['parent_title_template'])) {
+                $parent_title = sprintf($config['parent_title_template'], $parent_ledger_code);
+            }
+
             $wpdb->insert($ledger_table, [
                 'local_ledger_code' => $parent_ledger_code,
+                'local_ledger_title' => $parent_title,
                 'local_ledger_type' => $config['parent_ledger_type'],
                 'local_ledger_note' => $import_note . $note_suffix,
                 'local_ledger_total_amount' => $total_amount,
@@ -824,8 +831,15 @@ class TGS_Transfer_Ajax
             }
 
             // ========== BƯỚC 2: Tạo phiếu CON (Nhập tự động) ==========
+            // Tạo title cho phiếu con từ template (nếu có)
+            $child_title = '';
+            if (!empty($config['child_title_template'])) {
+                $child_title = sprintf($config['child_title_template'], $parent_ledger_code);
+            }
+
             $auto_import_ledger_data = [
                 'local_ledger_code' => $auto_import_code,
+                'local_ledger_title' => $child_title,
                 'local_ledger_type' => TGS_LEDGER_TYPE_PURCHASE,
                 'local_ledger_note' => 'Nhập tự động từ phiếu: ' . $parent_ledger_code,
                 'local_ledger_total_amount' => $total_amount,
@@ -940,6 +954,8 @@ class TGS_Transfer_Ajax
             'source_parent_type' => TGS_LEDGER_TYPE_TRANSFER_EXPORT, // 12
             'parent_code_prefix' => 'MNB',                        // Mua Nội Bộ
             'child_code_prefix' => 'AMN',                         // Auto Mua Nội bộ
+            'parent_title_template' => 'Thông tin phiếu mua nội bộ %s', // %s = code
+            'child_title_template' => 'Nhập tự động từ %s', // %s = parent code
             'log_action' => 'transfer_import_created',
             'redirect_view' => 'ticket-transfer-import-detail',
             'success_message' => 'Tạo phiếu mua nội bộ thành công',
@@ -2642,6 +2658,8 @@ class TGS_Transfer_Ajax
             'source_parent_type' => TGS_LEDGER_TYPE_INTERNAL_RETURN, // 14
             'parent_code_prefix' => 'NTN',                         // Nhận Trả Nội Bộ
             'child_code_prefix' => 'ANT',                          // Auto Nhận Trả
+            'parent_title_template' => 'Thông tin phiếu nhận trả nội bộ %s', // %s = code
+            'child_title_template' => 'Nhập tự động từ %s', // %s = parent code
             'log_action' => 'transfer_return_receive_created',
             'redirect_view' => 'ticket-internal-return-receive-detail',
             'success_message' => 'Tạo phiếu nhận trả nội bộ thành công',
