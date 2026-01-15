@@ -254,9 +254,9 @@ if (!$transfer_id) {
                             <tr>
                                 <th style="width: 50px;" class="text-center">#</th>
                                 <th>Mã định danh</th>
+                                <th style="width: 120px;">Mã lô</th>
                                 <th style="width: 100px;">HSD</th>
                                 <th style="width: 200px;">Tình trạng</th>
-                                <th class="text-center" style="width: 80px;">Đã kiểm</th>
                             </tr>
                         </thead>
                         <tbody id="lotListContainer"></tbody>
@@ -274,10 +274,47 @@ if (!$transfer_id) {
 <style>
 .lot-row.scanned { background-color: #d1e7dd !important; }
 .lot-row.defect { background-color: #f8d7da !important; }
-.scan-success { color: #198754; }
-.scan-error { color: #dc3545; }
-.scan-warning { color: #fd7e14; }
+.scan-success { color: #198754; font-weight: 600; }
+.scan-error { color: #dc3545; font-weight: 600; }
+.scan-warning { color: #fd7e14; font-weight: 600; }
 #lotListTable_wrapper .dataTables_filter { display: none; }
+
+/* Popup chọn tình trạng sau khi scan */
+.scan-condition-popup {
+    background: #fff;
+    border: 2px solid #0d6efd;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: popupFadeIn 0.2s ease-out;
+}
+.scan-condition-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #dee2e6;
+}
+.scan-condition-header code {
+    font-size: 1rem;
+    background: #e9ecef;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.scan-condition-body .btn-group .btn {
+    padding: 10px 16px;
+    font-size: 0.95rem;
+}
+.scan-condition-body .btn-group .btn i {
+    font-size: 1.1rem;
+    margin-right: 4px;
+}
+@keyframes popupFadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 </style>
 
 <!-- DataTables CSS và JS -->
@@ -351,10 +388,12 @@ jQuery(document).ready(function($) {
                                 selectedLots: lotsDetail.map(l => l.id),
                                 quantity: lotsDetail.length
                             };
-                            // Khởi tạo lotConditions với condition mặc định = 0 (Mới)
+                            // Khởi tạo lotConditions từ global_product_lot_condition trong DB
+                            // condition = 3 là Lỗi, khác 3 là Mới
                             lotsDetail.forEach(lot => {
+                                const dbCondition = parseInt(lot.condition) || 0;
                                 lotConditions[lot.id] = {
-                                    condition: lot.condition || 0,
+                                    condition: dbCondition === 3 ? 3 : 0,
                                     scanned: false
                                 };
                             });
@@ -577,6 +616,7 @@ jQuery(document).ready(function($) {
         const tableData = currentModalLots.map((lot, index) => {
             const lotId = lot.id;
             const lotBarcode = lot.barcode || lotId;
+            const lotCode = lot.lot_code || '—';
             const condData = lotConditions[lotId] || { condition: 0, scanned: false };
 
             return {
@@ -584,14 +624,14 @@ jQuery(document).ready(function($) {
                 lotId: lotId,
                 lotBarcode: lotBarcode,
                 barcodeHtml: `<code>${escapeHtml(lotBarcode)}</code>`,
+                lotCode: lotCode,
+                lotCodeHtml: `<code class="text-primary">${escapeHtml(lotCode)}</code>`,
                 expDate: lot.exp_date ? formatExpDate(lot.exp_date) : '—',
                 conditionHtml: `<select class="form-select form-select-sm" data-lot-id="${lotId}">
-                    <option value="0" ${condData.condition === 0 ? 'selected' : ''}>Mới</option>
+                    <option value="0" ${condData.condition !== 3 ? 'selected' : ''}>Mới</option>
                     <option value="3" ${condData.condition === 3 ? 'selected' : ''}>Lỗi</option>
                 </select>`,
-                scannedHtml: condData.scanned ? '<span class="text-success">OK</span>' : '—',
-                condition: condData.condition,
-                isScanned: condData.scanned
+                condition: condData.condition
             };
         });
 
@@ -600,9 +640,9 @@ jQuery(document).ready(function($) {
             columns: [
                 { data: 'index', className: 'text-center' },
                 { data: 'barcodeHtml' },
+                { data: 'lotCodeHtml' },
                 { data: 'expDate' },
-                { data: 'conditionHtml' },
-                { data: 'scannedHtml', className: 'text-center' }
+                { data: 'conditionHtml' }
             ],
             pageLength: 25,
             lengthMenu: [[25, 50, -1], [25, 50, 'Tất cả']],
@@ -615,8 +655,7 @@ jQuery(document).ready(function($) {
             },
             createdRow: function(row, data) {
                 $(row).attr('data-lot-id', data.lotId).attr('data-lot-barcode', data.lotBarcode);
-                if (data.condition === 1) $(row).addClass('lot-row defect');
-                else if (data.isScanned) $(row).addClass('lot-row scanned');
+                if (data.condition === 3) $(row).addClass('lot-row defect');
             }
         });
     }
@@ -635,7 +674,7 @@ jQuery(document).ready(function($) {
 
         currentModalLots.forEach(lot => {
             const condData = lotConditions[lot.id] || { condition: 0 };
-            if (condData.condition === 1) {
+            if (condData.condition === 3) {
                 defectCount++;
             } else {
                 newCount++;
@@ -660,20 +699,34 @@ jQuery(document).ready(function($) {
         lotConditions[lotId].condition = condition;
 
         // Update row class
-        $row.removeClass('scanned defect');
-        if (condition === 1) {
+        $row.removeClass('defect');
+        if (condition === 3) {
             $row.addClass('defect');
-        } else if (lotConditions[lotId].scanned) {
-            $row.addClass('scanned');
         }
 
         updateModalSummary();
     });
 
-    // Scan
+    // Scan - tự động nhận khi scan (máy scan thường gửi ký tự rất nhanh)
+    let scanTimeout = null;
+    $('#scanLotInput').on('input', function() {
+        // Clear timeout trước đó
+        if (scanTimeout) clearTimeout(scanTimeout);
+
+        // Đợi 100ms sau khi nhập xong (máy scan thường hoàn thành trong vài ms)
+        scanTimeout = setTimeout(() => {
+            const val = $(this).val().trim();
+            if (val.length >= 3) { // Chỉ xử lý khi có ít nhất 3 ký tự
+                processScan();
+            }
+        }, 100);
+    });
+
+    // Vẫn hỗ trợ Enter để xử lý thủ công
     $('#scanLotInput').on('keypress', function(e) {
         if (e.which === 13) {
             e.preventDefault();
+            if (scanTimeout) clearTimeout(scanTimeout);
             processScan();
         }
     });
@@ -688,32 +741,97 @@ jQuery(document).ready(function($) {
         const scannedValue = $('#scanLotInput').val().trim();
         if (!scannedValue) return;
 
-        if (lotDataTable) lotDataTable.search(scannedValue).draw();
-
+        // Tìm lot khớp với mã scan
         const matchedLot = currentModalLots.find(lot => lot.barcode === scannedValue);
 
         if (matchedLot) {
             const lotId = matchedLot.id;
-            if (!lotConditions[lotId]) lotConditions[lotId] = { condition: 0, scanned: false };
+            const condData = lotConditions[lotId] || { condition: 0 };
 
-            if (lotConditions[lotId].scanned) {
-                $('#scanResult').html('<span class="scan-warning">Đã kiểm: ' + escapeHtml(matchedLot.barcode) + '</span>');
-            } else {
-                lotConditions[lotId].scanned = true;
-                const $row = $(`tr[data-lot-id="${lotId}"]`);
-                if ($row.length) {
-                    $row.addClass('lot-row scanned');
-                    $row.find('td:last').html('<span class="text-success">OK</span>');
-                }
-                updateModalSummary();
-                $('#scanResult').html('<span class="scan-success">OK: ' + escapeHtml(matchedLot.barcode) + '</span>');
-            }
+            // Hiện popup để chọn tình trạng
+            showConditionPopup(lotId, matchedLot.barcode, condData.condition);
         } else {
             $('#scanResult').html('<span class="scan-error">Không khớp: ' + escapeHtml(scannedValue) + '</span>');
         }
 
         $('#scanLotInput').val('').focus();
     }
+
+    // Popup chọn tình trạng sau khi scan
+    function showConditionPopup(lotId, barcode, currentCondition) {
+        // Xóa popup cũ nếu có
+        $('#scanConditionPopup').remove();
+
+        const isNew = currentCondition !== 3;
+        const popup = `
+            <div id="scanConditionPopup" class="scan-condition-popup">
+                <div class="scan-condition-header">
+                    <strong>Mã: <code>${escapeHtml(barcode)}</code></strong>
+                    <button type="button" class="btn-close btn-sm" onclick="$('#scanConditionPopup').remove(); $('#scanLotInput').focus();"></button>
+                </div>
+                <div class="scan-condition-body">
+                    <label class="d-block mb-2">Chọn tình trạng:</label>
+                    <div class="btn-group w-100" role="group">
+                        <button type="button" class="btn ${isNew ? 'btn-success' : 'btn-outline-success'} btn-condition-select" data-lot-id="${lotId}" data-condition="0">
+                            <i class="bx bx-check-circle"></i> Mới
+                        </button>
+                        <button type="button" class="btn ${!isNew ? 'btn-danger' : 'btn-outline-danger'} btn-condition-select" data-lot-id="${lotId}" data-condition="3">
+                            <i class="bx bx-error-circle"></i> Lỗi
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        $('#scanResult').html(popup);
+
+        // Focus vào popup
+        setTimeout(() => {
+            const $activeBtn = $('#scanConditionPopup .btn-condition-select.btn-success, #scanConditionPopup .btn-condition-select.btn-danger').not('.btn-outline-success, .btn-outline-danger').first();
+            if ($activeBtn.length) $activeBtn.focus();
+        }, 50);
+    }
+
+    // Xử lý click chọn tình trạng từ popup
+    $(document).on('click', '.btn-condition-select', function() {
+        const lotId = parseInt($(this).data('lot-id'));
+        const condition = parseInt($(this).data('condition'));
+
+        // Cập nhật lotConditions
+        if (!lotConditions[lotId]) {
+            lotConditions[lotId] = { condition: 0, scanned: false };
+        }
+        lotConditions[lotId].condition = condition;
+
+        // Cập nhật dropdown trong bảng
+        const $select = $(`select[data-lot-id="${lotId}"]`);
+        if ($select.length) {
+            $select.val(condition);
+            // Trigger change để cập nhật row class
+            $select.trigger('change');
+        }
+
+        // Cập nhật row class
+        const $row = $(`tr[data-lot-id="${lotId}"]`);
+        if ($row.length) {
+            $row.removeClass('defect');
+            if (condition === 3) {
+                $row.addClass('defect');
+            }
+            // Scroll đến row
+            $row[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Hiện thông báo và đóng popup
+        const statusText = condition === 3 ? 'Lỗi' : 'Mới';
+        $('#scanConditionPopup').remove();
+        $('#scanResult').html(`<span class="${condition === 3 ? 'scan-error' : 'scan-success'}">Đã đánh dấu: ${statusText}</span>`);
+
+        updateModalSummary();
+
+        // Focus lại input scan
+        $('#scanLotInput').focus();
+    });
 
     // Save lot conditions
     $('#btnSaveLotConditions').on('click', function() {
@@ -738,9 +856,17 @@ jQuery(document).ready(function($) {
             success: function(response) {
                 btn.prop('disabled', false).text('Lưu');
                 if (response.success) {
-                    $('#scanResult').html('<span class="scan-success">Đã lưu!</span>');
+                    // Cập nhật button trên bảng chính
                     $(`.btn-select-lots[data-barcode="${currentModalBarcode}"]`)
                         .removeClass('btn-outline-primary').addClass('btn-success').text('Đã kiểm');
+
+                    // Đóng modal
+                    const modalEl = document.getElementById('lotSelectModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+
+                    // Hiện thông báo success
+                    showAlert('success', 'Đã lưu tình trạng sản phẩm thành công!');
                 } else {
                     $('#scanResult').html('<span class="scan-error">Lỗi: ' + (response.data?.message || 'Không thể lưu') + '</span>');
                 }
